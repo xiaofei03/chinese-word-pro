@@ -1,0 +1,73 @@
+{
+  "title": "中文 Word 生成测试：编码、字体与版式基线",
+  "subtitle": "UTF-8 输入文件 + python-docx + 显式中文字体设置 + 渲染前检查",
+  "summary": "本文件用于验证中文文件名、中文正文、英文术语、作者引用、表格和参考文献在 Word 生成流程中不会变成问号或乱码。",
+  "sections": [
+    {
+      "heading": "一、为什么会出现问号",
+      "paragraphs": [
+        [
+          {
+            "text": "截图中的连续问号通常说明中文字符在进入 .docx 之前已经被错误编码替换。常见原因包括 PowerShell 管道默认编码、脚本 stdout/stdin 转码、中间文件未声明 UTF-8，或者用错误编码读取含中文路径与中文内容的文件。"
+          }
+        ],
+        [
+          {
+            "text": "因此，稳妥做法是避免用 shell 管道传递中文正文，而是把正文放在 UTF-8 JSON、Markdown 或数据库记录中，由 Python 直接读取。"
+          },
+          {
+            "text": "AI washing",
+            "italic": true
+          },
+          {
+            "text": "、Sun et al., 2026 这类英文术语与引用可以和中文自然混排。"
+          }
+        ]
+      ]
+    },
+    {
+      "heading": "二、推荐的 Word 生成约定",
+      "paragraphs": [
+        [
+          {
+            "text": "正文中文字体使用宋体，英文与数字使用 Times New Roman；一级标题使用黑体并保留足够段前段后距离；正文采用小四字号与 1.5 倍行距。这样既适合中文论文写作，也便于后续按学校模板调整。"
+          }
+        ],
+        [
+          {
+            "text": "中文文件名也应该直接传给 pathlib.Path，而不是在 PowerShell 字符串、管道和重定向之间反复转换。本测试文档本身就使用中文文件名输出。"
+          }
+        ]
+      ]
+    }
+  ],
+  "matrix": [
+    {
+      "topic": "AI washing 与组织披露",
+      "theory": "合法性理论；信号理论",
+      "method": "企业文本披露与案例比较",
+      "finding": "企业可能通过模糊化 AI 能力来获得资本市场与公众注意。",
+      "use": "可用于界定概念边界与提出披露质量假设。"
+    },
+    {
+      "topic": "绿色洗白类比",
+      "theory": "制度理论；利益相关者理论",
+      "method": "文献综述与二手数据分析",
+      "finding": "洗白行为常出现在外部评价压力较高且实质能力不足的组织中。",
+      "use": "可借鉴其测量思路，构造 AI washing 指标。"
+    },
+    {
+      "topic": "数字化转型叙事",
+      "theory": "资源基础观；叙事战略",
+      "method": "年报文本分析",
+      "finding": "数字化叙事可能既反映真实能力，也可能服务于印象管理。",
+      "use": "可用于区分真实 AI 能力与象征性 AI 表述。"
+    }
+  ],
+  "references": [
+    "Connelly, B. L., Certo, S. T., Ireland, R. D., & Reutzel, C. R. (2011). Signaling theory: A review and assessment. Journal of Management, 37(1), 39-67.",
+    "Linnenluecke, M. K. (2017). Resilience in business and management research: A review of influential publications and a research agenda. International Journal of Management Reviews, 19(1), 4-30.",
+    "Ortiz-de-Mandojana, N., & Bansal, P. (2016). The long-term benefits of organizational resilience through sustainable business practices. Strategic Management Journal, 37(8), 1615-1631.",
+    "Elsayed, N. (2025). Artificial intelligence disclosures and corporate impression management. 示例参考文献，供中文 Word 编码测试使用。"
+  ]
+}
