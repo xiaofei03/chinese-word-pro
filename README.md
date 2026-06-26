@@ -1,6 +1,6 @@
 # chinese-word-pro
 
-`chinese-word-pro` is a reusable Codex skill for creating, repairing, formatting, and validating Chinese Word `.docx` files.
+`chinese-word-pro` is a reusable Codex skill for creating, repairing, formatting, and validating Chinese Word `.docx` files and for finalizing bilingual academic submission Word deliverables.
 
 It is built for academic and formal Chinese documents where typography, encoding, tables, figures, and formula rendering matter, especially when the final deliverable must be safe for submission rather than just visually acceptable at first glance.
 
@@ -17,6 +17,7 @@ It helps the user:
 - reduce figure clipping and layout breakage
 - inspect XML for garbling
 - protect citation fields during DOCX post-processing
+- finalize paired Chinese and English submission-ready Word files with the same structural rules
 
 ## Best Use Cases
 
@@ -38,7 +39,7 @@ It should usually be used as the downstream Word-finishing layer after content h
 In a paper workflow:
 
 - `management-empirical-writer` controls manuscript logic and delivery gates
-- `chinese-word-pro` controls Chinese Word structure, typography, and damage prevention
+- `chinese-word-pro` controls Word finalization, typography, and damage prevention
 
 ## Core Non-negotiables
 
@@ -72,6 +73,29 @@ It is especially suited to Chinese academic writing where Word output must look 
 7. Render to images when rendering is available.
 8. Only then replace the final user-facing `.docx`.
 
+## Academic Submission Finalization
+
+This skill now includes a formal "Academic Submission Finalization" role for empirical paper delivery.
+
+That role covers:
+
+- bilingual `.docx` finalization
+- journal-style table normalization
+- figure-caption normalization
+- native Word formula repair
+- chapter pagination
+- citation-safe post-processing
+
+Typical finalization responsibilities:
+
+- convert core equations into native Word math objects
+- repair inline pseudo-formulas such as `Y_it`, `CR_it`, or `z(...)`
+- force figures to remain inline rather than floating
+- separate figure captions from interpretation paragraphs
+- preserve caption numbering
+- enforce chapter-open page breaks
+- verify that citation fields survive post-processing
+
 ## Formal Delivery Flow
 
 ```mermaid
@@ -84,6 +108,18 @@ flowchart TD
     F --> G["Render and visually inspect when available"]
     G --> H["Replace final DOCX only after all checks pass"]
 ```
+
+## Mandatory Delivery Audit
+
+A final submission DOCX should not be considered passed unless all of the following are true:
+
+- live citation fields are still present
+- no garbling markers appear in OOXML
+- figure paragraphs are inline and captions remain independent paragraphs
+- core formulas remain native Word objects where required
+- tables preserve academic three-line structure
+- abstract, major chapters, and references start on new pages where the workflow requires
+- temporary exports are cleaned up after delivery
 
 ## Citation-Field Protection
 
@@ -111,6 +147,8 @@ This skill is designed to catch failures such as:
 
 When needed, it prefers explicit Word runs and subscript formatting over trusting automatic conversion blindly.
 
+For submission finalization, it also prefers native Word equation objects over plain-text pseudo-formulas whenever the manuscript presents formal empirical models.
+
 ## Common Failure Modes This Skill Is Meant to Prevent
 
 - Chinese text damaged before DOCX generation
@@ -124,7 +162,7 @@ When needed, it prefers explicit Word runs and subscript formatting over trustin
 
 - `SKILL.md`: main operating rules
 - `references/`: Chinese Word and thesis-format references
-- `scripts/`: build and post-process helpers
+- `scripts/`: build and post-process helpers, including submission finalization
 - `assets/`: templates and sample inputs
 
 ## Relationship to Final Manuscript Delivery
@@ -135,3 +173,9 @@ That final decision belongs to the manuscript workflow controller. In the recomm
 
 - `management-empirical-writer` determines whether formal delivery may proceed
 - `chinese-word-pro` makes sure the Word file is structurally safe enough to deliver
+
+## Companion Scripts
+
+- `scripts/build_chinese_word.py`: UTF-8 source to initial Chinese Word generation
+- `scripts/postprocess_thesis_docx.py`: legacy thesis-oriented DOCX cleanup
+- `scripts/finalize_submission_docx.py`: bilingual journal-submission finalization for formulas, figures, tables, pagination, and citation-safe DOCX delivery

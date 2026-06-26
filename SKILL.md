@@ -5,7 +5,7 @@ description: Use when creating, editing, formatting, or verifying Chinese Word `
 
 # Chinese Word Pro
 
-Use this skill for Chinese `.docx` work. It complements the built-in `documents` skill: use this skill for Chinese encoding, typography, and workflow rules, then use `documents` for DOCX rendering and visual QA.
+Use this skill for Chinese `.docx` work and bilingual academic submission finalization. It complements the built-in `documents` skill: use this skill for encoding, typography, Word-structure repair, and delivery-safe post-processing, then use `documents` for DOCX rendering and visual QA.
 
 ## USTC Thesis Standard
 
@@ -88,6 +88,31 @@ Use these rules by default when the task is a Chinese thesis, dissertation chapt
 - figure insertion or side-by-side figures
 - formula, subscript, Greek-letter, or inline-math corruption in Word
 
+## Academic Submission Finalization
+
+Use this module when the task is not only "make the Word look better" but "produce the formal submission-safe Chinese and English final DOCX pair."
+
+Core authority:
+
+- bilingual docx finalization
+- journal-style academic tables
+- figure-caption normalization
+- native Word formula repair
+- chapter pagination
+- citation-safe post-processing
+
+This skill is the Word finalization authority. It owns the final post-processing rules for:
+
+- Chinese and English body-font normalization
+- three-line table geometry
+- inline figure normalization
+- figure-caption separation and numbering preservation
+- native equation object conversion
+- inline pseudo-formula repair in explanation paragraphs
+- first-page and chapter pagination rules
+- XML-level garbling checks
+- citation-field preservation checks
+
 ### Required Workflow
 
 1. Edit the UTF-8 source first. Do not treat the generated `.docx` as the only source of truth.
@@ -109,6 +134,21 @@ Use these rules by default when the task is a Chinese thesis, dissertation chapt
 - When inline formulas or symbol explanations are prone to corruption in Word, prefer native Word runs with explicit subscript formatting over trusting automatic math conversion.
 - Before overwriting a user-facing DOCX, write a temporary output first so an open file or a failed pass does not destroy the working draft.
 - If post-processing removes or flattens citation fields, treat that as a delivery failure, not a minor defect.
+- Do not directly hand-edit the previous "healthy" final DOCX and treat that as the new delivery baseline; always re-export from Markdown, then re-run finalization.
+- Chinese and English final DOCX outputs must be finalized with the same structural rule set unless the user explicitly requests divergence.
+
+### Mandatory Delivery Audit
+
+Before a final DOCX is allowed to overwrite the main deliverable, the post-processing workflow must confirm all of the following:
+
+- live citation fields still exist in `word/document.xml`
+- `m:oMath` or `m:eqArr` objects exist when model equations are present
+- explanation paragraphs no longer expose broken pseudo-formula forms such as `Y_it`, `CR_it`, or `z(...)` as raw degraded text
+- figures are inline rather than floating anchors
+- figure captions are independent paragraphs and retain numbering
+- three-line tables remain structurally intact
+- chapter-opening titles, abstract, and references use page-break-before where required
+- temporary DOCX exports are cleaned up after delivery
 
 ### Default Figure Standards
 
@@ -117,6 +157,11 @@ Use these rules by default when the task is a Chinese thesis, dissertation chapt
 - Captions must remain immediately adjacent to the figure block.
 - If a figure risks clipping in Word, reduce figure width or adjust the containing layout; do not force it to fill the page.
 - For Chinese academic work, verified PNG is preferred over SVG when Word rendering is unstable.
+- Figure paragraphs must not inherit ordinary body-text first-line indentation or fixed body line spacing.
+- Figure captions must be separate paragraphs, not embedded in the interpretive paragraph above the figure.
+- Preferred caption formats:
+  - Chinese: `图 1 标题`
+  - English: `Figure 1. Title`
 
 ### Default Three-Line Table Standards
 
@@ -149,15 +194,42 @@ When these symbols appear in body-text explanations, prefer native Word runs wit
 
 If the generated DOCX shows degraded forms like `(_i)` or missing Greek letters, treat that as a required post-processing fix, not a cosmetic issue.
 
-### Recommended Companion Script
+For journal-submission finalization:
 
-For non-trivial thesis DOCX delivery, use `scripts/postprocess_thesis_docx.py` after draft generation to normalize:
+- core model equations should be converted to native Word math objects
+- multiline equations should remain a single math block rather than fragmented line-by-line text boxes
+- equation numbers should be independent right-aligned paragraphs
+- inline pseudo-formulas in explanation text should be repaired to true subscript or superscript runs
+- Greek letters, subscripts, and squared terms must not be delivered as bare underscore strings
 
-- side-by-side figure sizing
-- three-line table borders
-- zero-indentation table paragraphs
-- compact table spacing
-- inline subscript and Greek-letter repair in explanation paragraphs
+### Recommended Companion Scripts
+
+For non-trivial thesis DOCX delivery, `scripts/postprocess_thesis_docx.py` remains available for legacy thesis-style repairs.
+
+For bilingual journal-submission finalization, use:
+
+`scripts/finalize_submission_docx.py`
+
+Recommended interface:
+
+```bash
+python3 finalize_submission_docx.py \
+  --input-docx temp_export.docx \
+  --output-docx final.docx \
+  --lang cn \
+  --mode journal_submission
+```
+
+This companion script is the preferred execution point for:
+
+- font and paragraph normalization
+- equation-object repair
+- pseudo-formula explanation repair
+- figure-paragraph and figure-caption normalization
+- three-line table repair
+- chapter pagination
+- garbling checks
+- citation-field protection checks
 
 
 ## Garbling Check
