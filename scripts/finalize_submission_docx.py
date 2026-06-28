@@ -222,6 +222,7 @@ def set_paragraph_format(paragraph, lang: str, in_table: bool = False):
     pf = paragraph.paragraph_format
     pf.left_indent = Pt(0)
     pf.right_indent = Pt(0)
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
     if in_table:
         pf.first_line_indent = Pt(0)
         pf.space_before = Pt(0)
@@ -254,15 +255,12 @@ def set_paragraph_format(paragraph, lang: str, in_table: bool = False):
         pf.space_after = Pt(6)
         pf.line_spacing_rule = WD_LINE_SPACING.EXACTLY
         pf.line_spacing = Pt(18 if lang == "cn" else 14)
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     else:
         pf.first_line_indent = Cm(0.74) if lang == "cn" else Pt(0)
         pf.space_before = Pt(0)
         pf.space_after = Pt(0)
         pf.line_spacing_rule = WD_LINE_SPACING.EXACTLY if lang == "cn" else WD_LINE_SPACING.ONE_POINT_FIVE
         pf.line_spacing = Pt(20 if lang == "cn" else 18)
-        if lang == "cn":
-            paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
 
 def set_table_borders(cell, *, top=None, bottom=None, left=None, right=None):
@@ -308,7 +306,7 @@ def format_tables(doc: Document, lang: str):
                 cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
                 for p in cell.paragraphs:
                     set_paragraph_format(p, lang, in_table=True)
-                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
                     for run in p.runs:
                         set_run_fonts(run, east_asia, latin, body_size, bold=(r_idx == 0))
                 set_table_borders(

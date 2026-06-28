@@ -7,6 +7,23 @@ description: Use when creating, editing, formatting, or verifying Chinese Word `
 
 Use this skill for Chinese `.docx` work and bilingual academic submission finalization. It complements the built-in `documents` skill: use this skill for encoding, typography, Word-structure repair, and delivery-safe post-processing, then use `documents` for DOCX rendering and visual QA.
 
+## General Chinese Report Standard
+
+When the user asks for a Chinese report, stock analysis report, course report, case analysis, management report, or any non-thesis Chinese Word/PDF deliverable with charts or tables, read `references/general_report_delivery.md` before creating or formatting the document.
+
+Use `assets/report_template.docx` as the default reference template for ordinary Chinese reports unless the user provides a more specific template.
+
+For ordinary Chinese report output, the report delivery rules override generic defaults where they conflict:
+
+- Title and headings must be black unless the user explicitly requests accent colors.
+- Remove template residue such as blue title borders, underline styles, and theme accent colors.
+- Figures must be inline and visually verified; when clipping or text-overlap risk exists, use a borderless one-column figure block.
+- Table captions go above tables; figure captions go below figures.
+- Three-line tables must be enforced with cell-level borders.
+- Report tables should stay compact and structural. Do not put long narrative judgment columns such as `分析判断`, `原因说明`, or `投资含义` into tables by default; move that analysis into paragraphs immediately below the table.
+- OOXML cleanup must include `word/document.xml`, `word/styles.xml`, and `word/theme/theme1.xml`. Theme files must be processed before generic `word/*.xml` cleanup, otherwise `theme1.xml` may keep blue `accent1`/`4F81BD` residues.
+- PDF export on macOS/LibreOffice must use `scripts/export_pdf_fixed.py` or an equivalent fontconfig-safe path, then render pages for QA.
+
 ## USTC Thesis Standard
 
 When the user asks for a thesis, dissertation, graduation thesis, USTC/中国科学技术大学 format, school official template, or says Word output should follow the official thesis template, read `references/ustc_thesis_format.md` before creating or formatting the document.
@@ -28,6 +45,9 @@ For USTC thesis-style output, the USTC rules override the generic defaults below
 7. If rendering is blocked by missing software or sandbox permissions, say so plainly and do not claim visual QA passed.
 8. If the manuscript uses Zotero or another Word citation-field workflow, DOCX post-processing must not break the citation fields.
 9. Never overwrite the user-facing final DOCX directly from a temporary export before structural checks are complete.
+10. For ordinary Chinese reports, do not rely on a template alone to fix figures, three-line tables, title borders, or PDF fonts; run structural post-processing and render QA.
+11. For table-heavy reports, keep tables for metrics/categories only; if a cell needs sentence-level analysis, remove that column and write the interpretation as body text below the table.
+12. When cleaning blue heading residue, inspect not only visible text but also `word/styles.xml` and `word/theme/theme1.xml`; visual pass alone is insufficient because Word/LibreOffice can reinterpret theme accents on another machine.
 
 ## Preferred Build Pattern
 
@@ -53,6 +73,15 @@ For generated JSON, use:
 
 ```python
 json.dumps(data, ensure_ascii=False)
+```
+
+For ordinary Chinese report PDF export on macOS/LibreOffice, use the bundled fixed exporter:
+
+```bash
+python3 "<skill-dir>/scripts/export_pdf_fixed.py" \
+  --input-docx "<final.docx>" \
+  --output-pdf "<final.pdf>" \
+  --render-dir "<rendered_pages>"
 ```
 
 ## Default Chinese Document Style
@@ -104,6 +133,7 @@ Core authority:
 This skill is the Word finalization authority. It owns the final post-processing rules for:
 
 - Chinese and English body-font normalization
+- left-aligned academic paragraph layout by default
 - three-line table geometry
 - inline figure normalization
 - figure-caption separation and numbering preservation
@@ -136,6 +166,7 @@ This skill is the Word finalization authority. It owns the final post-processing
 - If post-processing removes or flattens citation fields, treat that as a delivery failure, not a minor defect.
 - Do not directly hand-edit the previous "healthy" final DOCX and treat that as the new delivery baseline; always re-export from Markdown, then re-run finalization.
 - Chinese and English final DOCX outputs must be finalized with the same structural rule set unless the user explicitly requests divergence.
+- Academic submission paragraphs must be left-aligned by default. Do not deliver body text, headings, figure captions, table captions, references, or table-cell text as centered or justified unless the user explicitly requests that style. The only default exceptions are pure figure/image paragraphs, native equation blocks, and equation-number paragraphs.
 
 ### Mandatory Delivery Audit
 
@@ -147,6 +178,7 @@ Before a final DOCX is allowed to overwrite the main deliverable, the post-proce
 - figures are inline rather than floating anchors
 - figure captions are independent paragraphs and retain numbering
 - three-line tables remain structurally intact
+- body text, headings, captions, references, and table-cell paragraphs are left-aligned unless explicitly overridden
 - chapter-opening titles, abstract, and references use page-break-before where required
 - temporary DOCX exports are cleaned up after delivery
 
@@ -159,6 +191,7 @@ Before a final DOCX is allowed to overwrite the main deliverable, the post-proce
 - For Chinese academic work, verified PNG is preferred over SVG when Word rendering is unstable.
 - Figure paragraphs must not inherit ordinary body-text first-line indentation or fixed body line spacing.
 - Figure captions must be separate paragraphs, not embedded in the interpretive paragraph above the figure.
+- Figure captions must be left-aligned in submission finalization unless the user explicitly requests centered captions.
 - Preferred caption formats:
   - Chinese: `图 1 标题`
   - English: `Figure 1. Title`
@@ -170,8 +203,8 @@ Before a final DOCX is allowed to overwrite the main deliverable, the post-proce
   - header separator rule: `0.5 pt`
   - bottom rule: `1.5 pt`
 - By default, do not keep vertical borders and do not keep ordinary row gridlines unless the user explicitly requests auxiliary lines.
-- Table header cells should be centered.
-- Short body fields should usually be centered.
+- Table header cells should be left-aligned by default for submission finalization unless the target template explicitly requires centering.
+- Short body fields should usually be left-aligned when the user requests globally left-aligned paragraphs.
 - Long narrative or definition columns should usually be left-aligned.
 - Prefer compact academic geometry:
   - fixed column widths

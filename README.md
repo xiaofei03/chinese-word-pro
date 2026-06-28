@@ -56,6 +56,7 @@ Unless the user specifies otherwise, this skill aims for:
 - Chinese body: `宋体`
 - English body: `Times New Roman`
 - stable heading hierarchy
+- left-aligned academic paragraphs by default
 - academic table geometry
 - three-line tables where appropriate
 - safer inline formula display
@@ -93,6 +94,7 @@ Typical finalization responsibilities:
 - force figures to remain inline rather than floating
 - separate figure captions from interpretation paragraphs
 - preserve caption numbering
+- force body text, headings, captions, references, and table-cell text to left alignment unless explicitly overridden
 - enforce chapter-open page breaks
 - verify that citation fields survive post-processing
 
@@ -115,6 +117,7 @@ A final submission DOCX should not be considered passed unless all of the follow
 
 - live citation fields are still present
 - no garbling markers appear in OOXML
+- body text, headings, captions, references, and table-cell paragraphs are left-aligned unless the user explicitly requested otherwise
 - figure paragraphs are inline and captions remain independent paragraphs
 - core formulas remain native Word objects where required
 - tables preserve academic three-line structure
