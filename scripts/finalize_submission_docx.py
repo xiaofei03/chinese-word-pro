@@ -514,8 +514,24 @@ def format_tables(doc: Document, lang: str):
                 )
 
 
+def normalize_equation_source(text: str) -> str:
+    text = text.strip().strip("`")
+    text = text.replace("\\\\", "\\")
+    text = text.replace("\\left", "").replace("\\right", "")
+    text = text.replace("\\times", "×")
+    text = text.replace("\\sum", "sum")
+    text = re.sub(r"\s+", " ", text)
+    return text
+
+
+def _has_formula_token(text: str, *tokens: str) -> bool:
+    compact = re.sub(r"\s+", "", text)
+    return all(token in compact for token in tokens)
+
+
 def rebuild_equation_paragraph(paragraph):
     text = paragraph.text.strip()
+    normalized = normalize_equation_source(text)
     if text.startswith("W_kl = sum_p I(k in p) I(l in p), k != l"):
         replace_with_omml_block(
             paragraph,
@@ -528,6 +544,21 @@ def rebuild_equation_paragraph(paragraph):
                 math_text(" I"),
                 math_group([math_text("l in p")]),
                 math_text(", k ≠ l"),
+            ]],
+            eq_no=1,
+        )
+        return True
+    if _has_formula_token(normalized, "PR_{kt}=", "sum_{j\\inM(k)}", "PR_{jt}/L_{jt}"):
+        replace_with_omml_block(
+            paragraph,
+            [[
+                math_sub("PR", "kt"),
+                math_text(" = (1-d) + d "),
+                math_sub("Σ", "j∈M(k)"),
+                math_text(" "),
+                math_sub("PR", "jt"),
+                math_text("/"),
+                math_sub("L", "jt"),
             ]],
             eq_no=1,
         )
@@ -555,6 +586,21 @@ def rebuild_equation_paragraph(paragraph):
             eq_no=2,
         )
         return True
+    if _has_formula_token(normalized, "AIPatent_{it}=", "sum_{k\\inK_{it}}", "PR_{kt}", "N_{ikt}"):
+        replace_with_omml_block(
+            paragraph,
+            [[
+                math_sub("AIPatent", "it"),
+                math_text(" = "),
+                math_sub("Σ", "k∈K_it"),
+                math_text(" "),
+                math_sub("PR", "kt"),
+                math_text(" × "),
+                math_sub("N", "ikt"),
+            ]],
+            eq_no=2,
+        )
+        return True
     if text.startswith("AIPatent_it = sum_k N_ikt PR_kt"):
         replace_with_omml_block(
             paragraph,
@@ -570,6 +616,19 @@ def rebuild_equation_paragraph(paragraph):
             eq_no=3,
         )
         return True
+    if _has_formula_token(normalized, "AIW_{it}=", "z(AIDisclosure_{it})", "z(AIPatent_{it})"):
+        replace_with_omml_block(
+            paragraph,
+            [[
+                math_sub("AIW", "it"),
+                math_text(" = z"),
+                math_group([math_sub("AIDisclosure", "it")]),
+                math_text(" - z"),
+                math_group([math_sub("AIPatent", "it")]),
+            ]],
+            eq_no=3,
+        )
+        return True
     if text.startswith("AIW_it = z(AIDisclosure_it) - z(AIPatent_it)"):
         replace_with_omml_block(
             paragraph,
@@ -580,6 +639,39 @@ def rebuild_equation_paragraph(paragraph):
                 math_text(" - z"),
                 math_group([math_sub("AIPatent", "it")]),
             ]],
+            eq_no=4,
+        )
+        return True
+    if _has_formula_token(normalized, "Resilience_{it}=", "AIW_{it}", "Controls_{it}", "μ_i", "λ_t"):
+        replace_with_omml_block(
+            paragraph,
+            [
+                [
+                    math_sub("Resilience", "it"),
+                    math_text(" = "),
+                    math_sub("α", "0"),
+                    math_text(" + "),
+                    math_sub("α", "1"),
+                    math_text(" "),
+                    math_sub("AIW", "it"),
+                    math_text(" + "),
+                    math_sub("α", "2"),
+                    math_text(" "),
+                    math_subsup("AIW", "it", "2"),
+                    math_text(" + Σ "),
+                    math_sub("β", "k"),
+                    math_text(" "),
+                    math_sub("Controls", "it"),
+                ],
+                [
+                    math_text("+ "),
+                    math_sub("μ", "i"),
+                    math_text(" + "),
+                    math_sub("λ", "t"),
+                    math_text(" + "),
+                    math_sub("ε", "it"),
+                ],
+            ],
             eq_no=4,
         )
         return True
@@ -611,6 +703,39 @@ def rebuild_equation_paragraph(paragraph):
                     math_sub("λ", "t"),
                     math_text(" + "),
                     math_sub("ε", "it"),
+                ],
+            ],
+            eq_no=5,
+        )
+        return True
+    if _has_formula_token(normalized, "Channel_{it}=", "AIW_{it}", "Controls_{it}", "ν_{it}"):
+        replace_with_omml_block(
+            paragraph,
+            [
+                [
+                    math_sub("Channel", "it"),
+                    math_text(" = "),
+                    math_sub("γ", "0"),
+                    math_text(" + "),
+                    math_sub("γ", "1"),
+                    math_text(" "),
+                    math_sub("AIW", "it"),
+                    math_text(" + "),
+                    math_sub("γ", "2"),
+                    math_text(" "),
+                    math_subsup("AIW", "it", "2"),
+                    math_text(" + Σ "),
+                    math_sub("δ", "k"),
+                    math_text(" "),
+                    math_sub("Controls", "it"),
+                ],
+                [
+                    math_text("+ "),
+                    math_sub("μ", "i"),
+                    math_text(" + "),
+                    math_sub("λ", "t"),
+                    math_text(" + "),
+                    math_sub("ν", "it"),
                 ],
             ],
             eq_no=5,
@@ -649,6 +774,43 @@ def rebuild_equation_paragraph(paragraph):
             eq_no=6,
         )
         return True
+    if _has_formula_token(normalized, "Resilience_{it}=", "Channel_{it}", "ξ_{it}"):
+        replace_with_omml_block(
+            paragraph,
+            [
+                [
+                    math_sub("Resilience", "it"),
+                    math_text(" = "),
+                    math_sub("θ", "0"),
+                    math_text(" + "),
+                    math_sub("θ", "1"),
+                    math_text(" "),
+                    math_sub("AIW", "it"),
+                    math_text(" + "),
+                    math_sub("θ", "2"),
+                    math_text(" "),
+                    math_subsup("AIW", "it", "2"),
+                    math_text(" + "),
+                    math_sub("θ", "3"),
+                    math_text(" "),
+                    math_sub("Channel", "it"),
+                ],
+                [
+                    math_text("+ Σ "),
+                    math_sub("φ", "k"),
+                    math_text(" "),
+                    math_sub("Controls", "it"),
+                    math_text(" + "),
+                    math_sub("μ", "i"),
+                    math_text(" + "),
+                    math_sub("λ", "t"),
+                    math_text(" + "),
+                    math_sub("ξ", "it"),
+                ],
+            ],
+            eq_no=6,
+        )
+        return True
     if text.startswith("Resilience_it = theta_0 + theta_1 AIW_it"):
         replace_with_omml_block(
             paragraph,
@@ -681,6 +843,53 @@ def rebuild_equation_paragraph(paragraph):
                     math_sub("λ", "t"),
                     math_text(" + "),
                     math_sub("ξ", "it"),
+                ],
+            ],
+            eq_no=7,
+        )
+        return True
+    if _has_formula_token(normalized, "Outcome_{it}=", "AnalystAttention_{it}", "κ_k", "ω_{it}"):
+        replace_with_omml_block(
+            paragraph,
+            [
+                [
+                    math_sub("Outcome", "it"),
+                    math_text(" = "),
+                    math_sub("ρ", "0"),
+                    math_text(" + "),
+                    math_sub("ρ", "1"),
+                    math_text(" "),
+                    math_sub("AIW", "it"),
+                    math_text(" + "),
+                    math_sub("ρ", "2"),
+                    math_text(" "),
+                    math_subsup("AIW", "it", "2"),
+                    math_text(" + "),
+                    math_sub("ρ", "3"),
+                    math_text(" "),
+                    math_sub("AnalystAttention", "it"),
+                ],
+                [
+                    math_text("+ "),
+                    math_sub("ρ", "4"),
+                    math_text(" "),
+                    math_group([math_sub("AIW", "it"), math_text(" × "), math_sub("AnalystAttention", "it")]),
+                    math_text(" + "),
+                    math_sub("ρ", "5"),
+                    math_text(" "),
+                    math_group([math_subsup("AIW", "it", "2"), math_text(" × "), math_sub("AnalystAttention", "it")]),
+                ],
+                [
+                    math_text("+ Σ "),
+                    math_sub("κ", "k"),
+                    math_text(" "),
+                    math_sub("Controls", "it"),
+                    math_text(" + "),
+                    math_sub("μ", "i"),
+                    math_text(" + "),
+                    math_sub("λ", "t"),
+                    math_text(" + "),
+                    math_sub("ω", "it"),
                 ],
             ],
             eq_no=7,
@@ -1015,13 +1224,15 @@ def apply_page_break_rules(doc: Document, lang: str):
         paragraph.paragraph_format.page_break_before = paragraph.text.strip() in break_before_titles
 
 
-def validate_docx(path: Path):
+def validate_docx(path: Path, citation_policy: str = "strict"):
     with zipfile.ZipFile(path) as zf:
         xml = zf.read("word/document.xml").decode("utf-8", errors="ignore")
     if "�" in xml or "????" in xml:
         raise RuntimeError(f"{path} contains garbling markers")
-    if "ADDIN ZOTERO_ITEM" not in xml and "CSL_CITATION" not in xml:
+    if "ADDIN ZOTERO_ITEM" not in xml and "CSL_CITATION" not in xml and citation_policy == "strict":
         raise RuntimeError(f"{path} lost live citation fields")
+    if "ADDIN ZOTERO_ITEM" not in xml and "CSL_CITATION" not in xml and citation_policy == "warn":
+        print(f"WARNING: {path} has no live citation fields; layout finalization completed as a draft/recovery pass only.")
     for old_name in ("CR_it", "Y_it", "Mediator_it", "ROA1", "Balance1", "Mshare", "Occupy"):
         if old_name in xml:
             raise RuntimeError(f"{path} still contains deprecated variable token: {old_name}")
@@ -1035,6 +1246,12 @@ def main():
     parser.add_argument("--output-docx", required=True)
     parser.add_argument("--lang", choices=["cn", "en"], required=True)
     parser.add_argument("--mode", default="journal_submission")
+    parser.add_argument(
+        "--citation-policy",
+        choices=["strict", "warn", "off"],
+        default="strict",
+        help="Use strict for formal delivery, warn for disaster-recovery or working-draft layout repair, and off only for non-citation-managed documents.",
+    )
     parser.add_argument("--reference-style", default=None)
     parser.add_argument("--template-profile", default=None)
     args = parser.parse_args()
@@ -1051,7 +1268,7 @@ def main():
     format_tables(doc, args.lang)
     out_path = Path(args.output_docx)
     doc.save(out_path)
-    validate_docx(out_path)
+    validate_docx(out_path, citation_policy=args.citation_policy)
 
 
 if __name__ == "__main__":

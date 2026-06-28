@@ -163,6 +163,29 @@ If the helper cannot recover Zotero, use Computer Use for one GUI attempt to sel
 7. If rendering is not available, explicitly disclose that structural fixes were applied but automatic page-image QA was not completed.
 8. Only overwrite the final user-facing DOCX after the temporary DOCX has passed the structural checks and, when applicable, the citation-field checks.
 
+### Delivery Mode Distinction
+
+This skill must distinguish formal submission delivery from recovery or working-draft layout repair.
+
+Formal submission mode:
+
+- Use `--citation-policy strict`.
+- Require live citation fields when the manuscript is citation-managed.
+- Fail if `ADDIN ZOTERO_ITEM` or `CSL_CITATION` markers are absent.
+- Do not overwrite the formal final Word files unless citation, garbling, formula, figure, table, and render checks pass.
+
+Recovery or working-draft layout mode:
+
+- Use `--citation-policy warn` only when the user explicitly needs a readable restored Word file before the citation-aware export chain is repaired.
+- The script may complete typography, equation, figure, table, and pagination repair.
+- The script must print or log that live citation fields are absent.
+- The output must be described as a recovery draft or working draft, not a formal submission file.
+
+Non-citation-managed mode:
+
+- Use `--citation-policy off` only for documents that are not expected to contain Zotero, CSL, or equivalent live fields.
+- Do not use `off` for empirical manuscripts with citekeys unless the user explicitly abandons live-citation delivery.
+
 ### Hard Rules
 
 - `Markdown -> pandoc -> docx` is a draft-generation path, not a complete final-delivery path.
@@ -194,6 +217,8 @@ Before a final DOCX is allowed to overwrite the main deliverable, the post-proce
 - visible Chinese body text has no unnecessary spaces between Chinese characters, between numbers and Chinese measurement words, or before Chinese punctuation, while Zotero field metadata is not edited directly
 - chapter-opening titles, abstract, and references use page-break-before where required
 - temporary DOCX exports are cleaned up after delivery
+
+For recovery or working-draft layout mode, run the same structural checks but report citation-field absence as a blocking issue for formal submission rather than as a layout failure.
 
 ### Default Figure Standards
 
@@ -263,6 +288,17 @@ When these symbols appear in body-text explanations, prefer native Word runs wit
 - `PR_kt`
 - `N_ikt`
 
+The finalizer must also recognize common Pandoc or LaTeX-flavored formula text generated from Markdown, including:
+
+- `PR_{kt} = ...`
+- `AIPatent_{it} = ...`
+- `AIW_{it} = z(...) - z(...)`
+- `Resilience_{it} = ...`
+- `Channel_{it} = ...`
+- `Outcome_{it} = ...`
+
+These should be converted to native Word math objects or repaired inline symbol runs rather than delivered as raw source-code-like formula strings.
+
 If the generated DOCX shows degraded forms like `(_i)` or missing Greek letters, treat that as a required post-processing fix, not a cosmetic issue.
 
 For journal-submission finalization:
@@ -324,8 +360,22 @@ python3 finalize_submission_docx.py \
   --input-docx temp_export.docx \
   --output-docx final.docx \
   --lang cn \
-  --mode journal_submission
+  --mode journal_submission \
+  --citation-policy strict
 ```
+
+Recovery-draft interface when citation-aware export is temporarily broken:
+
+```bash
+python3 finalize_submission_docx.py \
+  --input-docx temp_export.docx \
+  --output-docx recovery_layout.docx \
+  --lang cn \
+  --mode journal_submission \
+  --citation-policy warn
+```
+
+Do not call the `warn` output a formal submission file.
 
 This companion script is the preferred execution point for:
 

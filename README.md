@@ -74,6 +74,30 @@ It is especially suited to Chinese academic writing where Word output must look 
 7. Render to images when rendering is available.
 8. Only then replace the final user-facing `.docx`.
 
+## Formal Delivery vs Recovery Drafts
+
+This skill distinguishes formal submission output from recovery or working-draft layout output.
+
+Formal submission output:
+
+- uses the citation-aware export chain first
+- runs `finalize_submission_docx.py` with `--citation-policy strict`
+- fails if live citation fields are absent in citation-managed manuscripts
+- may replace user-facing final `.docx` files only after all citation, formula, table, figure, garbling, and render checks pass
+
+Recovery or working-draft layout output:
+
+- is allowed only when a readable Word file is needed before citation-aware export has been repaired
+- runs `finalize_submission_docx.py` with `--citation-policy warn`
+- may repair formulas, tables, captions, figures, pagination, and typography
+- must be reported as a recovery draft or working draft
+- must not be represented as a formal submission file when live citation fields are absent
+
+Non-citation-managed output:
+
+- may use `--citation-policy off`
+- should not be used for empirical manuscripts with citekeys unless the user explicitly abandons live-citation delivery
+
 ## Academic Submission Finalization
 
 This skill now includes a formal "Academic Submission Finalization" role for empirical paper delivery.
@@ -129,6 +153,8 @@ A final submission DOCX should not be considered passed unless all of the follow
 - abstract, major chapters, and references start on new pages where the workflow requires
 - temporary exports are cleaned up after delivery
 
+For recovery drafts, run the same structural audit but record missing citation fields as a formal-delivery blocker rather than silently accepting the file.
+
 ## Citation-Field Protection
 
 This repository now explicitly treats citation-field protection as a delivery requirement.
@@ -181,6 +207,8 @@ When needed, it prefers explicit Word runs and subscript formatting over trustin
 
 For submission finalization, it also prefers native Word equation objects over plain-text pseudo-formulas whenever the manuscript presents formal empirical models.
 
+The finalizer should recognize both plain pseudo-formulas and Pandoc/LaTeX-style formula strings, including `AIPatent_{it}`, `AIW_{it}`, `Resilience_{it}`, `Channel_{it}`, `Outcome_{it}`, `PR_{kt}`, and `z(...)`. These forms should not survive in Word as source-code-like text when they are display equations or symbol explanations.
+
 ## Equation Layout Finalization
 
 Numbered display equations require a stricter Word layout than ordinary paragraphs.
@@ -208,6 +236,26 @@ Failure examples:
 - table rules cross through formulas
 - multiline formula is clipped because of fixed line height
 - formula is correct in XML but visually cramped or cut off in PDF/Word rendering
+
+Command examples:
+
+```bash
+# Formal delivery: fail if citation fields are absent.
+python3 "$HOME/.codex/skills/chinese-word-pro/scripts/finalize_submission_docx.py" \
+  --input-docx temp_export.docx \
+  --output-docx final.docx \
+  --lang cn \
+  --mode journal_submission \
+  --citation-policy strict
+
+# Recovery or working draft: repair layout, but warn if citation fields are absent.
+python3 "$HOME/.codex/skills/chinese-word-pro/scripts/finalize_submission_docx.py" \
+  --input-docx temp_export.docx \
+  --output-docx recovery_layout.docx \
+  --lang cn \
+  --mode journal_submission \
+  --citation-policy warn
+```
 
 ## Caption And Chinese Text Cleanup
 
