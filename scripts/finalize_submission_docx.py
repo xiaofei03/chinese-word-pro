@@ -298,6 +298,27 @@ def _set_table_no_borders(tbl):
         node.set(qn("w:val"), "nil")
 
 
+def _set_table_full_width(tbl):
+    tbl_pr = tbl.find(qn("w:tblPr"))
+    if tbl_pr is None:
+        tbl_pr = _w_el("tblPr")
+        tbl.insert(0, tbl_pr)
+    tbl_w = tbl_pr.find(qn("w:tblW"))
+    if tbl_w is None:
+        tbl_w = _w_el("tblW")
+        tbl_pr.append(tbl_w)
+    tbl_w.set(qn("w:w"), "5000")
+    tbl_w.set(qn("w:type"), "pct")
+    jc = tbl_pr.find(qn("w:jc"))
+    if jc is None:
+        jc = _w_el("jc")
+        tbl_pr.append(jc)
+    jc.set(qn("w:val"), "center")
+    tbl_ind = tbl_pr.find(qn("w:tblInd"))
+    if tbl_ind is not None:
+        tbl_pr.remove(tbl_ind)
+
+
 def _set_paragraph_spacing_xml(p, *, before: int = 80, after: int = 80, align: str = "center"):
     p_pr = p.find(qn("w:pPr"))
     if p_pr is None:
@@ -496,13 +517,17 @@ def format_tables(doc: Document, lang: str):
             continue
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
         table.autofit = True
+        _set_table_full_width(table._tbl)
         last_row = len(table.rows) - 1
         for r_idx, row in enumerate(table.rows):
             for cell in row.cells:
                 cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
                 for p in cell.paragraphs:
                     set_paragraph_format(p, lang, in_table=True)
-                    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    p.paragraph_format.first_line_indent = Pt(0)
+                    p.paragraph_format.left_indent = Pt(0)
+                    p.paragraph_format.right_indent = Pt(0)
                     for run in p.runs:
                         set_run_fonts(run, east_asia, latin, body_size, bold=(r_idx == 0))
                 set_table_borders(
@@ -975,6 +1000,26 @@ def rebuild_explanation_paragraph(paragraph, lang: str):
             append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
             append_run(paragraph, " 为技术节点 k 在年份 t 的网络权重。该指标的含义是：企业并非因为拥有更多 AI 专利就自动获得更高技术行动得分，而是当其 AI 专利集中在全球 AI 知识网络中更核心、更具结构影响力的技术节点时，才获得更高的质量调整后 AI 技术积累得分。因此，AI Patent 衡量的是企业可验证 AI 技术资产的网络加权存量，而不是未经区分的专利件数。", east_asia, latin, size_pt)
             return True
+        if text.startswith("其中，PR_{kt} 表示技术节点"):
+            clear_paragraph(paragraph)
+            append_run(paragraph, "其中，", east_asia, latin, size_pt)
+            append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 表示技术节点 k 在年份 t 的 PageRank 权重；M(k) 表示与节点 k 存在指向或连接关系的节点集合；", east_asia, latin, size_pt)
+            append_symbol(paragraph, "L", "jt", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 表示节点 j 在年份 t 的外向连接数量；d 为阻尼系数，通常设定为0.85。", east_asia, latin, size_pt)
+            append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 越高，说明该技术节点在全球人工智能知识网络中越处于核心位置，其对应专利所代表的知识影响力和技术关联价值越高。为兼顾技术演进与样本覆盖，本文优先使用年度 PageRank 权重；若个别年份节点权重无法观测，则使用全样本期网络权重进行补充。", east_asia, latin, size_pt)
+            return True
+        if text.startswith("其中，K_{it} 表示企业"):
+            clear_paragraph(paragraph)
+            append_run(paragraph, "其中，", east_asia, latin, size_pt)
+            append_symbol(paragraph, "K", "it", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 表示企业 i 在年份 t 所涉及的人工智能技术节点集合；", east_asia, latin, size_pt)
+            append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 表示技术节点 k 在年份 t 的 PageRank 权重；", east_asia, latin, size_pt)
+            append_symbol(paragraph, "N", "ikt", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 表示企业 i 在年份 t 于节点 k 上的人工智能专利申请数量。该指标不仅反映企业人工智能专利的数量，还进一步考虑企业所进入技术领域在全球 AI 知识网络中的结构位置、知识关联程度与技术重要性，因此能够比原始专利计数更准确地刻画企业真实人工智能技术能力。", east_asia, latin, size_pt)
+            return True
         if text.startswith("其中，z(AIDisclosure_it) 和 z(AIPatent_it)"):
             clear_paragraph(paragraph)
             append_run(paragraph, "其中，z(", east_asia, latin, size_pt)
@@ -1044,6 +1089,26 @@ def rebuild_explanation_paragraph(paragraph, lang: str):
             append_run(paragraph, "where ", east_asia, latin, size_pt)
             append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
             append_run(paragraph, " is the network weight of node k in year t. This score means that a firm does not receive a higher AI-action score simply because it files more AI patents. It receives a higher score when its AI patents are concentrated in more central and structurally influential positions within the global AI knowledge network. The resulting AI Patent variable therefore measures a firm's quality-adjusted stock of verifiable AI technological assets rather than an undifferentiated patent count.", east_asia, latin, size_pt)
+            return True
+        if text.startswith("where PR_{kt} is the PageRank weight"):
+            clear_paragraph(paragraph)
+            append_run(paragraph, "where ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " is the PageRank weight of technology node k in year t, M(k) is the set of nodes linked to node k, ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "L", "jt", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " is the number of outgoing links of node j in year t, and d is the damping factor, conventionally set at 0.85. A higher ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " indicates that the node occupies a more central position in the global AI knowledge network.", east_asia, latin, size_pt)
+            return True
+        if text.startswith("where K_{it} is the set of AI technology nodes"):
+            clear_paragraph(paragraph)
+            append_run(paragraph, "where ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "K", "it", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " is the set of AI technology nodes covered by firm i in year t, ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " is the PageRank weight of node k, and ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "N", "ikt", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " is the number of AI patent applications of firm i on node k in year t. This measure captures both patent quantity and the structural importance of the technology fields in which the firm is active.", east_asia, latin, size_pt)
             return True
         if text.startswith("where z(AIDisclosure_it) and z(AIPatent_it)"):
             clear_paragraph(paragraph)

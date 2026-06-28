@@ -92,6 +92,7 @@ python3 "<skill-dir>/scripts/export_pdf_fixed.py" \
 - Heading 2: `黑体`, 13 pt, bold, keep with next.
 - References: hanging indent, 10 pt, 1.25 line spacing.
 - Tables: intentional column widths, repeated header row, shaded header, cell padding, vertical centering, no fixed row heights.
+- Academic submission tables: centered, fit the available page width, no inherited body first-line indentation inside cells, and centered cell text by default unless the journal profile explicitly requires field-specific alignment.
 
 Adjust these defaults when the user provides a school template, journal style, official thesis format, or explicit font/size requirements.
 
@@ -198,7 +199,7 @@ Non-citation-managed mode:
 - If post-processing removes or flattens citation fields, treat that as a delivery failure, not a minor defect.
 - Do not directly hand-edit the previous "healthy" final DOCX and treat that as the new delivery baseline; always re-export from Markdown, then re-run finalization.
 - Chinese and English final DOCX outputs must be finalized with the same structural rule set unless the user explicitly requests divergence.
-- Academic submission paragraphs must be left-aligned by default. Do not deliver body text, headings, references, or table-cell text as centered or justified unless the user explicitly requests that style. The default exceptions are pure figure/image paragraphs, figure captions, table captions, native equation blocks, and equation-number paragraphs.
+- Academic submission paragraphs must be left-aligned by default. Do not deliver body text, headings, or references as centered or justified unless the user explicitly requests that style. The default exceptions are pure figure/image paragraphs, figure captions, table captions, native equation blocks, equation-number paragraphs, and academic table-cell paragraphs.
 
 ### Mandatory Delivery Audit
 
@@ -209,10 +210,13 @@ Before a final DOCX is allowed to overwrite the main deliverable, the post-proce
 - equation numbers stay on the same visual line as their equations and are right-aligned
 - equation layout tables are borderless, are not processed as three-line tables, and contain no fixed line-height residues
 - explanation paragraphs no longer expose broken pseudo-formula forms such as `Y_it`, `CR_it`, or `z(...)` as raw degraded text
+- inline explanatory variables such as `K_{it}`, `PR_{kt}`, `N_{ikt}`, `L_{jt}`, and similar patent/network notation are converted to real subscript runs rather than delivered as raw underscore text
 - figures are inline rather than floating anchors
 - figure captions are independent paragraphs and retain numbering
 - three-line tables remain structurally intact
-- body text, headings, references, and table-cell paragraphs are left-aligned unless explicitly overridden
+- body text, headings, and references are left-aligned unless explicitly overridden
+- academic table-cell paragraphs have zero first-line, left, and right indentation and are centered by default unless a target journal profile explicitly requires another alignment
+- academic tables are centered and fit the available page width by default, while equation-layout tables remain borderless and are not forced into three-line-table styling
 - figure captions and table captions are independent centered paragraphs
 - visible Chinese body text has no unnecessary spaces between Chinese characters, between numbers and Chinese measurement words, or before Chinese punctuation, while Zotero field metadata is not edited directly
 - chapter-opening titles, abstract, and references use page-break-before where required
