@@ -139,6 +139,30 @@ Typical markers include:
 - `ADDIN ZOTERO_ITEM`
 - `CSL_CITATION`
 
+## Zotero Preflight and Recovery
+
+For Zotero-based manuscripts, run the Zotero preflight helper before citation-aware Word export:
+
+```bash
+python3 "$HOME/.codex/skills/chinese-word-pro/scripts/zotero_preflight_recover.py" \
+  --collection-key "<ZOTERO_COLLECTION_KEY>" \
+  --timeout 90 \
+  --strict
+```
+
+The helper locates Zotero, opens it if needed, waits for the local connector, and tries to open the target collection through Zotero's `zotero://select` URI scheme.
+
+If the scripted path cannot make the collection usable, the workflow may use Computer Use for one GUI recovery attempt to focus Zotero and select the intended collection. If the connector, collection, Better BibTeX, or MCP route still fails, stop and report the error. Do not produce a formal Word file with flattened citations.
+
+When new references were added after the last healthy Word export, require a small live-citation smoke test before full delivery. The helper can audit that smoke DOCX:
+
+```bash
+python3 "$HOME/.codex/skills/chinese-word-pro/scripts/zotero_preflight_recover.py" \
+  --collection-key "<ZOTERO_COLLECTION_KEY>" \
+  --smoke-docx "<SMOKE_TEST_DOCX>" \
+  --timeout 90
+```
+
 ## Garbling and Formula Safety
 
 This skill is designed to catch failures such as:
@@ -182,3 +206,4 @@ That final decision belongs to the manuscript workflow controller. In the recomm
 - `scripts/build_chinese_word.py`: UTF-8 source to initial Chinese Word generation
 - `scripts/postprocess_thesis_docx.py`: legacy thesis-oriented DOCX cleanup
 - `scripts/finalize_submission_docx.py`: bilingual journal-submission finalization for formulas, figures, tables, pagination, and citation-safe DOCX delivery
+- `scripts/zotero_preflight_recover.py`: Zotero launch, collection selection, connector preflight, and optional live-citation smoke DOCX audit

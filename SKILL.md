@@ -143,6 +143,15 @@ This skill is the Word finalization authority. It owns the final post-processing
 - XML-level garbling checks
 - citation-field preservation checks
 
+When Zotero live citation fields are required, this skill also provides the downstream recovery helper for citation-manager readiness before Word export:
+
+- locate and open Zotero if closed
+- open the target Zotero collection when a collection key or select URI is available
+- verify Zotero local connector availability
+- inspect a smoke-test DOCX for live Zotero citation markers when required
+
+If the helper cannot recover Zotero, use Computer Use for one GUI attempt to select the target collection. If Zotero, Better BibTeX, or the approved MCP route still cannot create live fields, stop and report failure rather than producing a flattened Word file.
+
 ### Required Workflow
 
 1. Edit the UTF-8 source first. Do not treat the generated `.docx` as the only source of truth.
@@ -243,6 +252,10 @@ For bilingual journal-submission finalization, use:
 
 `scripts/finalize_submission_docx.py`
 
+Before citation-aware export in Zotero-based projects, use:
+
+`scripts/zotero_preflight_recover.py`
+
 Recommended interface:
 
 ```bash
@@ -263,6 +276,24 @@ This companion script is the preferred execution point for:
 - chapter pagination
 - garbling checks
 - citation-field protection checks
+
+Recommended Zotero preflight interface:
+
+```bash
+python3 "$HOME/.codex/skills/chinese-word-pro/scripts/zotero_preflight_recover.py" \
+  --collection-key "<COLLECTION_KEY>" \
+  --timeout 90 \
+  --strict
+```
+
+Optional smoke-test audit:
+
+```bash
+python3 "$HOME/.codex/skills/chinese-word-pro/scripts/zotero_preflight_recover.py" \
+  --collection-key "<COLLECTION_KEY>" \
+  --smoke-docx "<SMOKE_TEST_DOCX>" \
+  --timeout 90
+```
 
 
 ## Garbling Check
