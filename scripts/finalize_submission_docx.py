@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import zipfile
+from copy import deepcopy
 from pathlib import Path
 
 from docx import Document
@@ -10,6 +11,9 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt
+
+W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 
 
 def set_run_fonts(run, east_asia: str, latin: str, size_pt: float | None = None, bold=None, italic=None, subscript=False):
@@ -209,12 +213,119 @@ def build_text_paragraph(text: str, align: str = "right"):
     return para
 
 
+def _set_cell_width(tc, width_twips: int):
+    tc_pr = tc.get_or_add_tcPr()
+    tc_w = tc_pr.find(qn("w:tcW"))
+    if tc_w is None:
+        tc_w = _w_el("tcW")
+        tc_pr.append(tc_w)
+    tc_w.set(qn("w:w"), str(width_twips))
+    tc_w.set(qn("w:type"), "dxa")
+
+
+def _set_cell_margins(tc, margin_twips: int = 0):
+    tc_pr = tc.get_or_add_tcPr()
+    tc_mar = tc_pr.find(qn("w:tcMar"))
+    if tc_mar is None:
+        tc_mar = _w_el("tcMar")
+        tc_pr.append(tc_mar)
+    for side in ("top", "left", "bottom", "right"):
+        node = tc_mar.find(qn(f"w:{side}"))
+        if node is None:
+            node = _w_el(side)
+            tc_mar.append(node)
+        node.set(qn("w:w"), str(margin_twips))
+        node.set(qn("w:type"), "dxa")
+
+
+def _set_table_no_borders(tbl):
+    tbl_pr = tbl.find(qn("w:tblPr"))
+    if tbl_pr is None:
+        tbl_pr = _w_el("tblPr")
+        tbl.insert(0, tbl_pr)
+    borders = tbl_pr.find(qn("w:tblBorders"))
+    if borders is None:
+        borders = _w_el("tblBorders")
+        tbl_pr.append(borders)
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        node = borders.find(qn(f"w:{edge}"))
+        if node is None:
+            node = _w_el(edge)
+            borders.append(node)
+        node.set(qn("w:val"), "nil")
+
+
+def _set_paragraph_spacing_xml(p, *, before: int = 80, after: int = 80, align: str = "center"):
+    p_pr = p.find(qn("w:pPr"))
+    if p_pr is None:
+        p_pr = _w_el("pPr")
+        p.insert(0, p_pr)
+    jc = p_pr.find(qn("w:jc"))
+    if jc is None:
+        jc = _w_el("jc")
+        p_pr.append(jc)
+    jc.set(qn("w:val"), align)
+    spacing = p_pr.find(qn("w:spacing"))
+    if spacing is None:
+        spacing = _w_el("spacing")
+        p_pr.append(spacing)
+    spacing.set(qn("w:before"), str(before))
+    spacing.set(qn("w:after"), str(after))
+    spacing.set(qn("w:lineRule"), "auto")
+    if qn("w:line") in spacing.attrib:
+        del spacing.attrib[qn("w:line")]
+
+
+def build_equation_table(equation_p, eq_no: int):
+    """Build a borderless two-cell equation block with same-line numbering."""
+    tbl = _w_el("tbl")
+    tbl_pr = _w_el("tblPr")
+    tbl_w = _w_el("tblW")
+    tbl_w.set(qn("w:w"), "9000")
+    tbl_w.set(qn("w:type"), "dxa")
+    tbl_pr.append(tbl_w)
+    jc = _w_el("jc")
+    jc.set(qn("w:val"), "center")
+    tbl_pr.append(jc)
+    tbl.append(tbl_pr)
+    _set_table_no_borders(tbl)
+
+    grid = _w_el("tblGrid")
+    for width in ("8000", "1000"):
+        col = _w_el("gridCol")
+        col.set(qn("w:w"), width)
+        grid.append(col)
+    tbl.append(grid)
+
+    tr = _w_el("tr")
+    for width in (8000, 1000):
+        tc = _w_el("tc")
+        _set_cell_width(tc, width)
+        _set_cell_margins(tc, 0)
+        v_align = _w_el("vAlign")
+        v_align.set(qn("w:val"), "center")
+        tc.get_or_add_tcPr().append(v_align)
+        tr.append(tc)
+    tbl.append(tr)
+
+    eq_cell, no_cell = tr.findall(qn("w:tc"))
+    eq_p = deepcopy(equation_p)
+    _set_paragraph_spacing_xml(eq_p, before=80, after=80, align="center")
+    eq_cell.append(eq_p)
+
+    no_p = build_text_paragraph(f"（{eq_no}）", align="right")
+    _set_paragraph_spacing_xml(no_p, before=80, after=80, align="right")
+    no_cell.append(no_p)
+    return tbl
+
+
 def replace_with_omml_block(paragraph, lines, eq_no: int | None = None):
     parent = paragraph._element.getparent()
     new_p = build_omml_multiline_paragraph(lines)
-    paragraph._element.addnext(new_p)
     if eq_no is not None:
-        new_p.addnext(build_text_paragraph(f"（{eq_no}）", align="right"))
+        paragraph._element.addnext(build_equation_table(new_p, eq_no))
+    else:
+        paragraph._element.addnext(new_p)
     parent.remove(paragraph._element)
 
 
@@ -288,6 +399,44 @@ def set_table_borders(cell, *, top=None, bottom=None, left=None, right=None):
     apply("right", right)
 
 
+def is_equation_table(table) -> bool:
+    # python-docx's namespace-aware findall can be brittle for inserted OMML.
+    # The serialized table XML is a safer marker for equation layout tables.
+    xml = table._tbl.xml
+    return "<m:oMath" in xml or "<m:oMathPara" in xml
+
+
+def normalize_equation_table(table, lang: str):
+    _set_table_no_borders(table._tbl)
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = False
+    for tr_height in list(table._tbl.iter(qn("w:trHeight"))):
+        parent = tr_height.getparent()
+        if parent is not None:
+            parent.remove(tr_height)
+    for p_xml in table._tbl.iter(qn("w:p")):
+        _set_paragraph_spacing_xml(p_xml, before=160, after=160, align="center")
+        spacing = p_xml.find(qn("w:pPr")).find(qn("w:spacing"))
+        spacing.set(qn("w:lineRule"), "auto")
+        spacing.attrib.pop(qn("w:line"), None)
+    for row in table.rows:
+        for c_idx, cell in enumerate(row.cells):
+            cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+            set_table_borders(
+                cell,
+                top={"val": "nil"},
+                bottom={"val": "nil"},
+                left={"val": "nil"},
+                right={"val": "nil"},
+            )
+            for p in cell.paragraphs:
+                p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if c_idx == 1 else WD_ALIGN_PARAGRAPH.CENTER
+                if _is_equation_paragraph_xml(p._element):
+                    _set_paragraph_spacing_xml(p._element, before=140, after=140, align="center")
+                else:
+                    _set_paragraph_spacing_xml(p._element, before=140, after=140, align="right")
+
+
 def format_tables(doc: Document, lang: str):
     top_rule = {"val": "single", "sz": "12", "space": "0", "color": "000000"}
     mid_rule = {"val": "single", "sz": "4", "space": "0", "color": "000000"}
@@ -298,6 +447,9 @@ def format_tables(doc: Document, lang: str):
     body_size = 10.5 if lang == "cn" else 10.5
 
     for table in doc.tables:
+        if is_equation_table(table):
+            normalize_equation_table(table, lang)
+            continue
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
         table.autofit = True
         last_row = len(table.rows) - 1
@@ -715,6 +867,49 @@ def format_paragraphs(doc: Document, lang: str):
             set_run_fonts(run, east_asia, latin, size)
 
 
+def _paragraph_text_xml(p) -> str:
+    return "".join(t.text or "" for t in p.findall(f".//{{{W_NS}}}t"))
+
+
+def _is_equation_paragraph_xml(p) -> bool:
+    return bool(p.findall(f".//{{{M_NS}}}oMathPara") or p.findall(f".//{{{M_NS}}}oMath"))
+
+
+def _parse_equation_number(text: str) -> int | None:
+    cleaned = text.strip().replace("(", "（").replace(")", "）")
+    if cleaned.startswith("（") and cleaned.endswith("）"):
+        inner = cleaned[1:-1].strip()
+        if inner.isdigit():
+            return int(inner)
+    return None
+
+
+def consolidate_existing_equation_numbers(doc: Document):
+    """Merge equation paragraphs plus standalone number paragraphs into one-row blocks."""
+    body = doc._element.body
+    children = list(body)
+    idx = 0
+    while idx < len(children) - 1:
+        current = children[idx]
+        nxt = children[idx + 1]
+        if current.tag != qn("w:p") or nxt.tag != qn("w:p"):
+            idx += 1
+            continue
+        if not _is_equation_paragraph_xml(current):
+            idx += 1
+            continue
+        eq_no = _parse_equation_number(_paragraph_text_xml(nxt))
+        if eq_no is None:
+            idx += 1
+            continue
+        table = build_equation_table(current, eq_no)
+        body.insert(body.index(current), table)
+        body.remove(current)
+        body.remove(nxt)
+        children = list(body)
+        idx += 1
+
+
 def apply_page_break_rules(doc: Document, lang: str):
     if lang == "cn":
         break_before_titles = {"摘要", "引言", "理论基础与研究假设", "研究设计", "实证结果分析", "进一步分析", "讨论", "结论", "参考文献"}
@@ -752,6 +947,7 @@ def main():
     doc = Document(args.input_docx)
     set_style_fonts(doc, args.lang)
     format_paragraphs(doc, args.lang)
+    consolidate_existing_equation_numbers(doc)
     apply_page_break_rules(doc, args.lang)
     format_tables(doc, args.lang)
     out_path = Path(args.output_docx)
