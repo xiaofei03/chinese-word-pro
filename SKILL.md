@@ -183,6 +183,8 @@ Before a final DOCX is allowed to overwrite the main deliverable, the post-proce
 
 - live citation fields still exist in `word/document.xml`
 - `m:oMath` or `m:eqArr` objects exist when model equations are present
+- equation numbers stay on the same visual line as their equations and are right-aligned
+- equation layout tables are borderless, are not processed as three-line tables, and contain no fixed line-height residues
 - explanation paragraphs no longer expose broken pseudo-formula forms such as `Y_it`, `CR_it`, or `z(...)` as raw degraded text
 - figures are inline rather than floating anchors
 - figure captions are independent paragraphs and retain numbering
@@ -239,10 +241,42 @@ If the generated DOCX shows degraded forms like `(_i)` or missing Greek letters,
 For journal-submission finalization:
 
 - core model equations should be converted to native Word math objects
-- multiline equations should remain a single math block rather than fragmented line-by-line text boxes
-- equation numbers should be independent right-aligned paragraphs
+- numbered display equations should use a borderless two-cell layout table by default: the left cell contains the centered native equation block and the right cell contains the right-aligned equation number
+- multiline equations should remain one native Word math block inside the left equation cell rather than fragmented line-by-line text boxes
+- equation numbers must stay on the same visual row as the equation block; do not deliver equation numbers as standalone paragraphs below or above the formula
+- equation layout tables must be excluded from ordinary three-line table formatting so table rules do not cross, compress, or visually cover formulas
+- equation layout cells must use zero indentation, no visible borders, vertically centered content, and enough before/after spacing to avoid cramped formulas
+- fixed line-height residues such as `w:lineRule="exact"`, `w:line`, and fixed row-height settings must be removed from equation layout tables because they can clip multiline formulas in Word, WPS, or LibreOffice rendering
 - inline pseudo-formulas in explanation text should be repaired to true subscript or superscript runs
 - Greek letters, subscripts, and squared terms must not be delivered as bare underscore strings
+
+### Equation Layout Finalization Gate
+
+Use this gate whenever a formal manuscript contains numbered empirical models, measurement formulas, or multiline equations.
+
+Required structure:
+
+- Store each numbered display equation in a borderless two-cell table.
+- Put the equation object in the left cell and the equation number in the right cell.
+- Center the equation cell and right-align the number cell.
+- Preserve one native Word math block for multiline equations.
+- Keep formula numbers formatted as `（1）` for Chinese drafts and `(1)` or journal-required style for English drafts when the user requests English punctuation.
+
+Required cleanup:
+
+- Remove standalone equation-number paragraphs.
+- Remove all visible borders from equation layout tables and cells.
+- Prevent equation layout tables from receiving three-line table rules.
+- Remove fixed line spacing and fixed row heights inside equation layout tables.
+- Add enough formula spacing to avoid cramped or clipped equations.
+
+Required audit:
+
+- XML audit must confirm equation tables contain `m:oMath` or `m:eqArr`.
+- XML audit must confirm no standalone equation-number paragraph remains.
+- XML audit must confirm equation layout tables have no visible `w:tblBorders` or `w:tcBorders`.
+- XML audit must confirm equation layout tables have no fixed `w:lineRule="exact"` or `w:line` residue.
+- Render QA must inspect at least the pages containing the longest formulas; XML checks alone are not sufficient because clipping is visual.
 
 ### Recommended Companion Scripts
 

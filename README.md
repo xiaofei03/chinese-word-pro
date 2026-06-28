@@ -91,6 +91,7 @@ Typical finalization responsibilities:
 
 - convert core equations into native Word math objects
 - repair inline pseudo-formulas such as `Y_it`, `CR_it`, or `z(...)`
+- keep numbered formulas on the same visual line as their equation numbers
 - force figures to remain inline rather than floating
 - separate figure captions from interpretation paragraphs
 - preserve caption numbering
@@ -120,6 +121,8 @@ A final submission DOCX should not be considered passed unless all of the follow
 - body text, headings, captions, references, and table-cell paragraphs are left-aligned unless the user explicitly requested otherwise
 - figure paragraphs are inline and captions remain independent paragraphs
 - core formulas remain native Word objects where required
+- equation numbers are right-aligned on the same row as their equations
+- equation layout tables are borderless and not treated as ordinary three-line tables
 - tables preserve academic three-line structure
 - abstract, major chapters, and references start on new pages where the workflow requires
 - temporary exports are cleaned up after delivery
@@ -176,6 +179,34 @@ When needed, it prefers explicit Word runs and subscript formatting over trustin
 
 For submission finalization, it also prefers native Word equation objects over plain-text pseudo-formulas whenever the manuscript presents formal empirical models.
 
+## Equation Layout Finalization
+
+Numbered display equations require a stricter Word layout than ordinary paragraphs.
+
+Default layout:
+
+- Use a borderless two-cell table for each numbered equation.
+- Put the centered native Word equation object in the left cell.
+- Put the equation number in the right cell and right-align it.
+- Keep multiline formulas as one native math block, not separate formula paragraphs.
+- Keep formula numbering on the same visual row as the equation block.
+
+Required protection:
+
+- Do not let equation layout tables receive ordinary three-line table borders.
+- Remove all visible table and cell borders from equation layout tables.
+- Remove fixed line spacing and fixed row heights inside equation layout tables.
+- Add enough before/after spacing so multiline equations do not look cramped.
+- Check the rendered pages containing the longest formulas; XML structure alone cannot prove that no clipping occurred.
+
+Failure examples:
+
+- equation number appears below the equation
+- equation number appears on the left or in an inconsistent position
+- table rules cross through formulas
+- multiline formula is clipped because of fixed line height
+- formula is correct in XML but visually cramped or cut off in PDF/Word rendering
+
 ## Common Failure Modes This Skill Is Meant to Prevent
 
 - Chinese text damaged before DOCX generation
@@ -183,6 +214,7 @@ For submission finalization, it also prefers native Word equation objects over p
 - tables with wrong indentation or broken three-line rules
 - clipped figures or unsafe side-by-side layouts
 - formula text that looks acceptable in Markdown but degrades in Word
+- formula numbers that drift into standalone paragraphs or formula tables that inherit three-line table borders
 - post-processing that accidentally destroys citation fields
 
 ## Repository Contents
