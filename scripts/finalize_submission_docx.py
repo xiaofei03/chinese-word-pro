@@ -320,6 +320,60 @@ def format_tables(doc: Document, lang: str):
 
 def rebuild_equation_paragraph(paragraph):
     text = paragraph.text.strip()
+    if text.startswith("W_kl = sum_p I(k in p) I(l in p), k != l"):
+        replace_with_omml_block(
+            paragraph,
+            [[
+                math_sub("W", "kl"),
+                math_text(" = "),
+                math_sub("Σ", "p"),
+                math_text(" I"),
+                math_group([math_text("k in p")]),
+                math_text(" I"),
+                math_group([math_text("l in p")]),
+                math_text(", k ≠ l"),
+            ]],
+            eq_no=1,
+        )
+        return True
+    if text.startswith("PR_k = (1-d)/N + d sum_l W_lk PR_l / sum_m W_lm"):
+        replace_with_omml_block(
+            paragraph,
+            [
+                [
+                    math_sub("PR", "k"),
+                    math_text(" = "),
+                    math_group([math_text("1-d")]),
+                    math_text("/N + d "),
+                    math_sub("Σ", "l"),
+                    math_text(" "),
+                    math_sub("W", "lk"),
+                    math_text(" "),
+                    math_sub("PR", "l"),
+                    math_text(" / "),
+                    math_sub("Σ", "m"),
+                    math_text(" "),
+                    math_sub("W", "lm"),
+                ],
+            ],
+            eq_no=2,
+        )
+        return True
+    if text.startswith("AIPatent_it = sum_k N_ikt PR_kt"):
+        replace_with_omml_block(
+            paragraph,
+            [[
+                math_sub("AIPatent", "it"),
+                math_text(" = "),
+                math_sub("Σ", "k"),
+                math_text(" "),
+                math_sub("N", "ikt"),
+                math_text(" "),
+                math_sub("PR", "kt"),
+            ]],
+            eq_no=3,
+        )
+        return True
     if text.startswith("AIW_it = z(AIDisclosure_it) - z(AIPatent_it)"):
         replace_with_omml_block(
             paragraph,
@@ -330,7 +384,7 @@ def rebuild_equation_paragraph(paragraph):
                 math_text(" - z"),
                 math_group([math_sub("AIPatent", "it")]),
             ]],
-            eq_no=1,
+            eq_no=4,
         )
         return True
     if text.startswith("Resilience_it = alpha_0 + alpha_1 AIW_it"):
@@ -363,7 +417,7 @@ def rebuild_equation_paragraph(paragraph):
                     math_sub("ε", "it"),
                 ],
             ],
-            eq_no=2,
+            eq_no=5,
         )
         return True
     if text.startswith("Channel_it = gamma_0 + gamma_1 AIW_it"):
@@ -396,7 +450,7 @@ def rebuild_equation_paragraph(paragraph):
                     math_sub("ν", "it"),
                 ],
             ],
-            eq_no=3,
+            eq_no=6,
         )
         return True
     if text.startswith("Resilience_it = theta_0 + theta_1 AIW_it"):
@@ -433,7 +487,7 @@ def rebuild_equation_paragraph(paragraph):
                     math_sub("ξ", "it"),
                 ],
             ],
-            eq_no=4,
+            eq_no=7,
         )
         return True
     if text.startswith("Outcome_it = rho_0 + rho_1 AIW_it"):
@@ -480,7 +534,7 @@ def rebuild_equation_paragraph(paragraph):
                     math_sub("ω", "it"),
                 ],
             ],
-            eq_no=5,
+            eq_no=8,
         )
         return True
     return False
@@ -492,13 +546,37 @@ def rebuild_explanation_paragraph(paragraph, lang: str):
     size_pt = 10.5 if lang == "cn" else 11
     text = paragraph.text.strip()
     if lang == "cn":
+        if text.startswith("其中，`W_kl` 表示节点"):
+            clear_paragraph(paragraph)
+            append_run(paragraph, "其中，", east_asia, latin, size_pt)
+            append_symbol(paragraph, "W", "kl", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 表示节点 k 与节点 l 的共现强度，I(k in p) 表示专利 p 是否包含技术节点 k。这一矩阵并不只记录专利数量，而是刻画 AI 技术知识在全球专利中的组合关系：两个 IPC 节点共同出现在 AI 专利中的频次越高，说明相应技术方向之间的知识关联越紧密。", east_asia, latin, size_pt)
+            return True
+        if text.startswith("其中，`PR_k` 表示技术节点"):
+            clear_paragraph(paragraph)
+            append_run(paragraph, "其中，", east_asia, latin, size_pt)
+            append_symbol(paragraph, "PR", "k", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 表示技术节点 k 的 PageRank 权重，N 为网络中的技术节点数量，d 为阻尼系数，", east_asia, latin, size_pt)
+            append_symbol(paragraph, "W", "lk", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 表示节点 l 指向节点 k 的共现权重，", east_asia, latin, size_pt)
+            append_symbol(paragraph, "Σ", "m", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "W", "lm", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 表示节点 l 的加权外向连接总强度。为反映技术网络结构随时间演化的特征，本文优先采用当年全球 AI 专利网络计算得到的节点权重；当某些年份节点信息不足时，采用全样本期网络权重进行补充。由此得到的权重可以区分不同 AI 专利所处技术位置的质量差异。", east_asia, latin, size_pt)
+            return True
+        if text.startswith("其中，`PR_kt` 为技术节点"):
+            clear_paragraph(paragraph)
+            append_run(paragraph, "其中，", east_asia, latin, size_pt)
+            append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 为技术节点 k 在年份 t 的网络权重。该指标的含义是：企业并非因为拥有更多 AI 专利就自动获得更高技术行动得分，而是当其 AI 专利集中在全球 AI 知识网络中更核心、更具结构影响力的技术节点时，才获得更高的质量调整后 AI 技术积累得分。因此，AI Patent 衡量的是企业可验证 AI 技术资产的网络加权存量，而不是未经区分的专利件数。", east_asia, latin, size_pt)
+            return True
         if text.startswith("其中，z(AIDisclosure_it) 和 z(AIPatent_it)"):
             clear_paragraph(paragraph)
             append_run(paragraph, "其中，z(", east_asia, latin, size_pt)
             append_symbol(paragraph, "AIDisclosure", "it", east_asia, latin, size_pt, italic=False)
             append_run(paragraph, ") 和 z(", east_asia, latin, size_pt)
             append_symbol(paragraph, "AIPatent", "it", east_asia, latin, size_pt, italic=False)
-            append_run(paragraph, ") 分别表示 AI Disclosure 与 AI Patent 在年份 t 内的横截面标准化值。AIW 数值越大，表示企业人工智能叙事越明显领先于其实质性人工智能技术积累，人工智能洗白程度越高。为识别潜在的非线性关系，本文进一步构造平方项 ", east_asia, latin, size_pt)
+            append_run(paragraph, ") 分别表示 AI Disclosure 与 AI Patent 在年份 t 内的横截面标准化值。AIW 数值越大，表示企业人工智能叙事越明显领先于其实质性人工智能技术积累，人工智能洗白程度越高。需要说明的是，这一指标本质上刻画的是“AI 叙事 - 能力基础偏离”而非对企业主观意图的直接观测，因此更接近 AI washing 的可操作代理变量，而不是对“误导行为”本身的完全识别。之所以仍将其用于度量 AI washing，是因为在上市公司情境下，外部受众最先观察到的正是公开叙事，而专利积累虽然不能穷尽企业全部 AI 能力，却能够较稳定地反映其可验证技术行动基础。当企业 AI 叙事持续显著快于这一可验证基础时，外部受众面对的正是本文所关注的“高叙事可见性、低能力可即时验证性”的偏离状态。为识别潜在的非线性关系，本文进一步构造平方项 ", east_asia, latin, size_pt)
             append_run(paragraph, "AIW", east_asia, latin, size_pt)
             append_run(paragraph, "²", east_asia, latin, size_pt)
             append_run(paragraph, "。", east_asia, latin, size_pt)
@@ -538,13 +616,37 @@ def rebuild_explanation_paragraph(paragraph, lang: str):
             append_run(paragraph, " 分别表示 Resilience、Trade Credit 和 Agency Cost。为降低交互项带来的多重共线性问题，本文在构造交互项前对 AIW 与 Analyst Attention 进行中心化处理。该模型不仅能够检验分析师关注度是否改变人工智能洗白的边际影响方向与强度，也能够识别其是否改变倒 U 型关系的拐点位置。", east_asia, latin, size_pt)
             return True
     else:
+        if text.startswith("where `W_kl` is the co-occurrence strength"):
+            clear_paragraph(paragraph)
+            append_run(paragraph, "where ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "W", "kl", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " is the co-occurrence strength between nodes k and l, and I(k in p) indicates whether patent p contains technology node k. The matrix therefore captures how AI-related technological knowledge is combined across patent classes. A higher co-occurrence frequency indicates a tighter knowledge association between the corresponding technology areas.", east_asia, latin, size_pt)
+            return True
+        if text.startswith("where `PR_k` is the PageRank weight"):
+            clear_paragraph(paragraph)
+            append_run(paragraph, "where ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "PR", "k", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " is the PageRank weight of technology node k, N is the number of nodes in the network, d is the damping factor, ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "W", "lk", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " is the weighted co-occurrence link from node l to node k, and ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "Σ", "m", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "W", "lm", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " is the total weighted outward connection strength of node l. To reflect the evolution of the technology network over time, we use year-specific PageRank weights whenever available and supplement them with full-sample network weights when node information is insufficient in a given year. These weights distinguish AI patents by the structural importance of the technological knowledge they embody.", east_asia, latin, size_pt)
+            return True
+        if text.startswith("where `PR_kt` is the network weight"):
+            clear_paragraph(paragraph)
+            append_run(paragraph, "where ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " is the network weight of node k in year t. This score means that a firm does not receive a higher AI-action score simply because it files more AI patents. It receives a higher score when its AI patents are concentrated in more central and structurally influential positions within the global AI knowledge network. The resulting AI Patent variable therefore measures a firm's quality-adjusted stock of verifiable AI technological assets rather than an undifferentiated patent count.", east_asia, latin, size_pt)
+            return True
         if text.startswith("where z(AIDisclosure_it) and z(AIPatent_it)"):
             clear_paragraph(paragraph)
             append_run(paragraph, "where z(", east_asia, latin, size_pt)
             append_symbol(paragraph, "AIDisclosure", "it", east_asia, latin, size_pt, italic=False)
             append_run(paragraph, ") and z(", east_asia, latin, size_pt)
             append_symbol(paragraph, "AIPatent", "it", east_asia, latin, size_pt, italic=False)
-            append_run(paragraph, ") denote the within-year cross-sectional standardized values of AI Disclosure and AI Patent, respectively. Higher values of AIW indicate that a firm's AI-oriented narrative is more pronounced relative to its substantive AI technological accumulation. To test for nonlinearity, we further construct the squared term ", east_asia, latin, size_pt)
+            append_run(paragraph, ") denote the within-year cross-sectional standardized values of AI Disclosure and AI Patent, respectively. Higher values of AIW indicate that a firm's AI-oriented narrative is more pronounced relative to its substantive AI technological accumulation. Importantly, this measure captures rhetoric-capability divergence rather than managerial intent directly. It is therefore best interpreted as an operational proxy for AI washing rather than a complete observation of deceptive behavior itself. We nonetheless use it as our empirical measure because, in listed-firm settings, outside audiences first observe public rhetoric, whereas patent accumulation, while not exhausting all AI capability, provides a relatively stable indicator of verifiable technological action. When AI rhetoric persistently and substantially outruns that verifiable base, outside audiences face precisely the high-visibility, low-immediate-verifiability condition that defines the phenomenon of interest here. To test for nonlinearity, we further construct the squared term ", east_asia, latin, size_pt)
             append_run(paragraph, "AIW", east_asia, latin, size_pt)
             append_run(paragraph, "²", east_asia, latin, size_pt)
             append_run(paragraph, ".", east_asia, latin, size_pt)
