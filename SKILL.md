@@ -175,7 +175,7 @@ If the helper cannot recover Zotero, use Computer Use for one GUI attempt to sel
 - If post-processing removes or flattens citation fields, treat that as a delivery failure, not a minor defect.
 - Do not directly hand-edit the previous "healthy" final DOCX and treat that as the new delivery baseline; always re-export from Markdown, then re-run finalization.
 - Chinese and English final DOCX outputs must be finalized with the same structural rule set unless the user explicitly requests divergence.
-- Academic submission paragraphs must be left-aligned by default. Do not deliver body text, headings, figure captions, table captions, references, or table-cell text as centered or justified unless the user explicitly requests that style. The only default exceptions are pure figure/image paragraphs, native equation blocks, and equation-number paragraphs.
+- Academic submission paragraphs must be left-aligned by default. Do not deliver body text, headings, references, or table-cell text as centered or justified unless the user explicitly requests that style. The default exceptions are pure figure/image paragraphs, figure captions, table captions, native equation blocks, and equation-number paragraphs.
 
 ### Mandatory Delivery Audit
 
@@ -189,7 +189,9 @@ Before a final DOCX is allowed to overwrite the main deliverable, the post-proce
 - figures are inline rather than floating anchors
 - figure captions are independent paragraphs and retain numbering
 - three-line tables remain structurally intact
-- body text, headings, captions, references, and table-cell paragraphs are left-aligned unless explicitly overridden
+- body text, headings, references, and table-cell paragraphs are left-aligned unless explicitly overridden
+- figure captions and table captions are independent centered paragraphs
+- visible Chinese body text has no unnecessary spaces between Chinese characters, between numbers and Chinese measurement words, or before Chinese punctuation, while Zotero field metadata is not edited directly
 - chapter-opening titles, abstract, and references use page-break-before where required
 - temporary DOCX exports are cleaned up after delivery
 
@@ -202,10 +204,35 @@ Before a final DOCX is allowed to overwrite the main deliverable, the post-proce
 - For Chinese academic work, verified PNG is preferred over SVG when Word rendering is unstable.
 - Figure paragraphs must not inherit ordinary body-text first-line indentation or fixed body line spacing.
 - Figure captions must be separate paragraphs, not embedded in the interpretive paragraph above the figure.
-- Figure captions must be left-aligned in submission finalization unless the user explicitly requests centered captions.
+- Figure captions must be centered in submission finalization unless the user explicitly requests a different journal style.
+- Table captions must also be centered in submission finalization unless the user explicitly requests a different journal style.
 - Preferred caption formats:
   - Chinese: `图 1 标题`
   - English: `Figure 1. Title`
+
+### Caption and Chinese Punctuation Cleanup
+
+Use this gate for Chinese or bilingual formal DOCX finalization.
+
+Caption rules:
+
+- Figure captions and table captions must be independent centered paragraphs.
+- Do not confuse narrative paragraphs such as `表 1 报告了...` with actual table captions.
+- Chinese captions should preserve the caption number separator, such as `图 2a 标题`, while removing unnecessary inner spacing such as `4 位` when it should read `4位`.
+- English captions should use the project or journal caption pattern, such as `Figure 1. Title` and `Table 1. Title`, and remain centered unless a journal style says otherwise.
+
+Chinese text cleanup rules:
+
+- Remove unnecessary spaces before Chinese punctuation.
+- Convert visible English punctuation next to Chinese text to Chinese punctuation where safe.
+- Remove unnecessary spaces between Chinese characters and between numbers and Chinese measurement words, such as `1% 水平`, `4 位`, and `2010 至 2024 年`.
+- Do not edit Zotero citation-field metadata, bibliography field instructions, formulas, drawings, or other field-code content to fix apparent spaces or punctuation inside OOXML.
+
+Audit rules:
+
+- XML audit must confirm all real figure/table captions are centered.
+- XML audit must confirm narrative paragraphs beginning with `表 1 报告...` or similar are not accidentally centered.
+- Visible-text audit should check common Chinese spacing problems, but ignore Zotero field metadata where English abstracts may contain spaces before punctuation.
 
 ### Default Three-Line Table Standards
 

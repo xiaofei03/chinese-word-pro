@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import zipfile
 from copy import deepcopy
 from pathlib import Path
@@ -14,6 +15,48 @@ from docx.shared import Cm, Pt
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+
+CN_PUNCT_MAP = str.maketrans({
+    ",": "，",
+    ";": "；",
+    ":": "：",
+    "?": "？",
+    "!": "！",
+})
+
+
+def is_caption_text(text: str) -> bool:
+    text = text.strip()
+    if re.match(r"^(图|表)\s*[0-9]+[A-Za-z]?\s*\S+", text):
+        return not re.match(r"^(图|表)\s*[0-9]+[A-Za-z]?\s*(报告|显示|列示|给出|展示|说明|中|可见|表明)", text)
+    if re.match(r"^(Figure|Table)\s+[0-9]+[A-Za-z]?\.", text):
+        return True
+    return False
+
+
+def normalize_cn_text(text: str) -> str:
+    if not text:
+        return text
+    # Preserve citekeys and English phrases as much as possible; only clean
+    # spacing and punctuation where adjacent Chinese text makes the intent clear.
+    text = re.sub(r"(?<=[\u4e00-\u9fff])\s+(?=[，。！？；：、])", "", text)
+    text = re.sub(r"(?<=[（《“])\s+", "", text)
+    text = re.sub(r"\s+(?=[）》”])", "", text)
+    text = re.sub(r"(?<=[\u4e00-\u9fff])\s+(?=[\u4e00-\u9fff])", "", text)
+    text = re.sub(r"(?<=[0-9％%])\s+(?=[\u4e00-\u9fff])", "", text)
+    text = re.sub(r"(?<=[\u4e00-\u9fff])\s+(?=[0-9])", "", text)
+    text = re.sub(r"(?<=[0-9])\s+(?=[至到—-])", "", text)
+    text = re.sub(r"(?<=[至到—-])\s+(?=[0-9])", "", text)
+    text = re.sub(r"(?<=[\u4e00-\u9fff])\s+([,;:?!])", r"\1", text)
+    text = re.sub(r"([,;:?!])(?=[\u4e00-\u9fff])", lambda m: m.group(1).translate(CN_PUNCT_MAP), text)
+    text = re.sub(r"(?<=[\u4e00-\u9fff])([,;:?!])", lambda m: m.group(1).translate(CN_PUNCT_MAP), text)
+    return text
+
+
+def normalize_caption_text(text: str) -> str:
+    text = normalize_cn_text(text)
+    text = re.sub(r"^(图|表)\s*([0-9]+[A-Za-z]?)\s*", r"\1 \2 ", text)
+    return text
 
 
 def set_run_fonts(run, east_asia: str, latin: str, size_pt: float | None = None, bold=None, italic=None, subscript=False):
@@ -360,12 +403,13 @@ def set_paragraph_format(paragraph, lang: str, in_table: bool = False):
         pf.space_after = Pt(6)
         pf.line_spacing_rule = WD_LINE_SPACING.EXACTLY
         pf.line_spacing = Pt(20 if lang == "cn" else 16)
-    elif text.startswith(("表 ", "图 ", "Table ", "Figure ")):
+    elif is_caption_text(text):
         pf.first_line_indent = Pt(0)
         pf.space_before = Pt(6)
         pf.space_after = Pt(6)
         pf.line_spacing_rule = WD_LINE_SPACING.EXACTLY
         pf.line_spacing = Pt(18 if lang == "cn" else 14)
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     else:
         pf.first_line_indent = Cm(0.74) if lang == "cn" else Pt(0)
         pf.space_before = Pt(0)
@@ -854,6 +898,8 @@ def format_paragraphs(doc: Document, lang: str):
         for run in paragraph.runs:
             if paragraph_has_drawing(paragraph):
                 continue
+            if lang == "cn" and run.text:
+                run.text = normalize_cn_text(run.text)
             size = body_size
             style_name = paragraph.style.name if paragraph.style else ""
             if style_name == "Heading 1":
@@ -862,7 +908,7 @@ def format_paragraphs(doc: Document, lang: str):
                 size = 13
             elif style_name == "Heading 3":
                 size = 12
-            elif paragraph.text.strip().startswith(("表 ", "图 ", "Table ", "Figure ")):
+            elif is_caption_text(paragraph.text.strip()):
                 size = 10.5
             set_run_fonts(run, east_asia, latin, size)
 
@@ -910,6 +956,56 @@ def consolidate_existing_equation_numbers(doc: Document):
         idx += 1
 
 
+def force_caption_alignment(doc: Document):
+    for p in doc._element.body.iter(qn("w:p")):
+        text = _paragraph_text_xml(p).strip()
+        if not is_caption_text(text):
+            continue
+        p_pr = p.find(qn("w:pPr"))
+        if p_pr is None:
+            p_pr = _w_el("pPr")
+            p.insert(0, p_pr)
+        jc = p_pr.find(qn("w:jc"))
+        if jc is None:
+            jc = _w_el("jc")
+            p_pr.append(jc)
+        jc.set(qn("w:val"), "center")
+        ind = p_pr.find(qn("w:ind"))
+        if ind is None:
+            ind = _w_el("ind")
+            p_pr.append(ind)
+        ind.set(qn("w:left"), "0")
+        ind.set(qn("w:right"), "0")
+        ind.set(qn("w:firstLine"), "0")
+
+
+def normalize_plain_chinese_paragraphs(doc: Document):
+    """Normalize visible Chinese text when it is safe to collapse run text.
+
+    This deliberately skips paragraphs containing fields, drawings, or OMML so
+    Zotero live citations, images, and equations are not touched.
+    """
+    for p in doc._element.body.iter(qn("w:p")):
+        if (
+            p.findall(f".//{{{W_NS}}}fldChar")
+            or p.findall(f".//{{{W_NS}}}instrText")
+            or p.findall(f".//{{{W_NS}}}drawing")
+            or p.findall(f".//{{{M_NS}}}oMath")
+            or p.findall(f".//{{{M_NS}}}oMathPara")
+        ):
+            continue
+        text_nodes = p.findall(f".//{{{W_NS}}}t")
+        if not text_nodes:
+            continue
+        original = "".join(node.text or "" for node in text_nodes)
+        normalized = normalize_caption_text(original) if is_caption_text(original) else normalize_cn_text(original)
+        if normalized == original:
+            continue
+        text_nodes[0].text = normalized
+        for node in text_nodes[1:]:
+            node.text = ""
+
+
 def apply_page_break_rules(doc: Document, lang: str):
     if lang == "cn":
         break_before_titles = {"摘要", "引言", "理论基础与研究假设", "研究设计", "实证结果分析", "进一步分析", "讨论", "结论", "参考文献"}
@@ -948,6 +1044,9 @@ def main():
     set_style_fonts(doc, args.lang)
     format_paragraphs(doc, args.lang)
     consolidate_existing_equation_numbers(doc)
+    if args.lang == "cn":
+        normalize_plain_chinese_paragraphs(doc)
+    force_caption_alignment(doc)
     apply_page_break_rules(doc, args.lang)
     format_tables(doc, args.lang)
     out_path = Path(args.output_docx)

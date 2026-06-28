@@ -95,6 +95,7 @@ Typical finalization responsibilities:
 - force figures to remain inline rather than floating
 - separate figure captions from interpretation paragraphs
 - preserve caption numbering
+- center figure captions and table captions as independent paragraphs
 - force body text, headings, captions, references, and table-cell text to left alignment unless explicitly overridden
 - enforce chapter-open page breaks
 - verify that citation fields survive post-processing
@@ -120,6 +121,7 @@ A final submission DOCX should not be considered passed unless all of the follow
 - no garbling markers appear in OOXML
 - body text, headings, captions, references, and table-cell paragraphs are left-aligned unless the user explicitly requested otherwise
 - figure paragraphs are inline and captions remain independent paragraphs
+- figure captions and table captions are centered independently from body text
 - core formulas remain native Word objects where required
 - equation numbers are right-aligned on the same row as their equations
 - equation layout tables are borderless and not treated as ordinary three-line tables
@@ -207,12 +209,36 @@ Failure examples:
 - multiline formula is clipped because of fixed line height
 - formula is correct in XML but visually cramped or cut off in PDF/Word rendering
 
+## Caption And Chinese Text Cleanup
+
+Formal Chinese or bilingual Word delivery should also clean small typographic issues that are easy to miss.
+
+Caption rules:
+
+- Figure captions and table captions should be independent centered paragraphs.
+- Narrative paragraphs such as `表 1 报告了...` are not captions and should not be centered.
+- Chinese caption numbering should remain readable, such as `图 2a 标题`.
+- English captions should follow the project pattern, such as `Figure 1. Title` and `Table 1. Title`.
+
+Chinese visible-text cleanup:
+
+- Remove unnecessary spaces before Chinese punctuation.
+- Remove unnecessary spaces between Chinese characters.
+- Remove unnecessary spaces between numbers and Chinese measurement words, such as `1%水平`, `4位`, and `2010至2024年`, unless the journal style requires otherwise.
+- Convert visible English punctuation next to Chinese text to Chinese punctuation where safe.
+
+Safety rule:
+
+- Do not edit Zotero field metadata, field instructions, equations, drawings, or other hidden OOXML content merely because it contains English spaces or punctuation.
+- Always re-audit citation fields after cleanup.
+
 ## Common Failure Modes This Skill Is Meant to Prevent
 
 - Chinese text damaged before DOCX generation
 - mixed Chinese and English fonts rendering inconsistently
 - tables with wrong indentation or broken three-line rules
 - clipped figures or unsafe side-by-side layouts
+- centered captions drifting back to body alignment or body paragraphs being mistaken for captions
 - formula text that looks acceptable in Markdown but degrades in Word
 - formula numbers that drift into standalone paragraphs or formula tables that inherit three-line table borders
 - post-processing that accidentally destroys citation fields
