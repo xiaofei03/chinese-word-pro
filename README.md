@@ -124,6 +124,97 @@ Typical finalization responsibilities:
 - enforce chapter-open page breaks
 - verify that citation fields survive post-processing
 
+## Formula Finalization Pipeline
+
+This skill now treats formulas as a dedicated delivery pipeline rather than as a loose set of cosmetic repairs.
+
+The required pipeline is:
+
+1. detect formula-bearing content
+2. build a formula inventory
+3. classify each item as display equation, inline symbol, or plain text
+4. repair inline symbols through the inline symbol renderer
+5. convert display equations through the OMML equation compiler
+6. run formula delivery audit before overwrite
+
+This is important because formula failures are not limited to one place. They can appear in:
+
+- numbered empirical models
+- measurement formulas
+- PageRank or network formulas
+- standardization formulas
+- inline explanations of symbols immediately below formulas
+
+Without a dedicated pipeline, the workflow becomes reactive and project-specific. With the pipeline, formula handling becomes a reusable finalization discipline.
+
+## Formula Inventory
+
+For formal delivery, the skill should treat formulas as an audited inventory rather than as accidental strings that happen to appear in the manuscript.
+
+The inventory should cover:
+
+- numbered empirical models
+- measurement formulas
+- weighting or network formulas
+- multiline equations
+- inline symbolic explanations
+- repeated coefficient or Greek-letter forms
+
+Even if a project does not maintain a separate formula manifest, the finalizer should behave as though an implicit inventory exists and audit all detectable formula-bearing content before delivery.
+
+## Inline Symbol Renderer
+
+Not all formula problems belong to display equations. Many appear in the prose that explains them.
+
+The inline symbol renderer is responsible for turning source-like notation into readable Word-native runs, including patterns such as:
+
+- `Return_{im}`
+- `AIDisclosure_{it}`
+- `AIPatent_{it}`
+- `PR_{kt}`
+- `K_{it}`
+- `N_{ikt}`
+- `w_1`, `w_2`
+- `α_1`, `β_k`, `μ_i`, `λ_t`
+- squared terms like `AIW²`
+
+Its job is to prevent formal delivery from exposing raw `_`, `{}`, `\\sigma`, `\\overline`, or similar markup-like residue in ordinary explanatory paragraphs.
+
+## OMML Equation Compiler
+
+The OMML equation compiler is responsible for display equations.
+
+Its goals are to:
+
+- convert formula text into native Word math objects
+- preserve multiline equations as one equation block
+- keep equation numbers on the same visual row as the equation
+- choose a stable numbering layout
+
+Default strategy:
+
+- short single-line equations should use native equation objects plus a right-aligned tab stop and same-line numbering by default
+- long or multiline equations may fall back to a borderless equation-layout container when the default tab-stop strategy is not stable enough
+
+The key point is that layout choice is an implementation strategy inside the compiler, not the governing policy itself.
+
+## Formula Delivery Audit
+
+Formal delivery must include a dedicated formula audit.
+
+The audit must confirm:
+
+- display equations that should be native math actually contain `m:oMath` or `m:eqArr`
+- equation numbers are present, ordered, and stay on the same row as the equation
+- multiline equations are not fragmented into unrelated pieces
+- explanatory prose does not expose raw source-like strings such as `Stability_{it}`, `CR_{it}`, `\\overline{...}`, or `\\sigma(...)`
+- inline variables use true subscript or superscript formatting where required
+- equation containers do not inherit ordinary table borders or clipping-prone line-height settings
+
+Fail-closed rule:
+
+- if raw formula residue survives in a formal delivery DOCX, the file fails formula audit and must not replace the main manuscript deliverable
+
 ## Formal Delivery Flow
 
 ```mermaid
@@ -215,17 +306,16 @@ Numbered display equations require a stricter Word layout than ordinary paragrap
 
 Default layout:
 
-- Use a borderless two-cell table for each numbered equation.
-- Put the centered native Word equation object in the left cell.
-- Put the equation number in the right cell and right-align it.
+- Use a native Word equation object plus a right-aligned tab stop and same-line equation number as the primary strategy.
 - Keep multiline formulas as one native math block, not separate formula paragraphs.
 - Keep formula numbering on the same visual row as the equation block.
+- Use a borderless equation-layout fallback container only when the default tab-stop strategy is visually unstable for a long or multiline formula.
 
 Required protection:
 
-- Do not let equation layout tables receive ordinary three-line table borders.
-- Remove all visible table and cell borders from equation layout tables.
-- Remove fixed line spacing and fixed row heights inside equation layout tables.
+- Do not let fallback equation containers receive ordinary three-line table borders.
+- Remove all visible borders from fallback equation containers.
+- Remove fixed line spacing and fixed row heights inside fallback equation containers.
 - Add enough before/after spacing so multiline equations do not look cramped.
 - Check the rendered pages containing the longest formulas; XML structure alone cannot prove that no clipping occurred.
 
@@ -233,7 +323,7 @@ Failure examples:
 
 - equation number appears below the equation
 - equation number appears on the left or in an inconsistent position
-- table rules cross through formulas
+- fallback-container rules cross through formulas
 - multiline formula is clipped because of fixed line height
 - formula is correct in XML but visually cramped or cut off in PDF/Word rendering
 

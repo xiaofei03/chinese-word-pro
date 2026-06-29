@@ -168,6 +168,17 @@ def math_sub(base: str, sub: str, *, italic_base: bool = False):
     return node
 
 
+def math_sub_expr(expr, sub: str):
+    node = _m_el("sSub")
+    e = _m_el("e")
+    e.append(expr)
+    sub_el = _m_el("sub")
+    sub_el.append(math_rich_text(sub, italic=False))
+    node.append(e)
+    node.append(sub_el)
+    return node
+
+
 def math_subsup(base: str, sub: str, sup: str, *, italic_base: bool = False):
     node = _m_el("sSubSup")
     e = _m_el("e")
@@ -199,6 +210,32 @@ def math_group(elements):
     return group
 
 
+def math_frac(num_elements, den_elements):
+    frac = _m_el("f")
+    num = _m_el("num")
+    den = _m_el("den")
+    for element in num_elements:
+        num.append(element)
+    for element in den_elements:
+        den.append(element)
+    frac.append(num)
+    frac.append(den)
+    return frac
+
+
+def math_overbar(element):
+    acc = _m_el("acc")
+    acc_pr = _m_el("accPr")
+    chr_el = _m_el("chr")
+    chr_el.set(qn("m:val"), "¯")
+    acc_pr.append(chr_el)
+    acc.append(acc_pr)
+    e = _m_el("e")
+    e.append(element)
+    acc.append(e)
+    return acc
+
+
 def build_omml_multiline_paragraph(lines):
     o_math_para = _m_el("oMathPara")
     o_math_para_pr = _m_el("oMathParaPr")
@@ -228,6 +265,75 @@ def build_omml_multiline_paragraph(lines):
     para = OxmlElement("w:p")
     para.append(p_pr)
     para.append(o_math_para)
+    return para
+
+
+def build_equation_numbered_paragraph(lines, eq_no: int, *, lang: str):
+    para = OxmlElement("w:p")
+    p_pr = _w_el("pPr")
+    jc = _w_el("jc")
+    jc.set(qn("w:val"), "center")
+    p_pr.append(jc)
+    ind = _w_el("ind")
+    ind.set(qn("w:left"), "0")
+    ind.set(qn("w:right"), "0")
+    ind.set(qn("w:firstLine"), "0")
+    p_pr.append(ind)
+    spacing = _w_el("spacing")
+    spacing.set(qn("w:before"), "120")
+    spacing.set(qn("w:after"), "120")
+    spacing.set(qn("w:lineRule"), "auto")
+    p_pr.append(spacing)
+    tabs = _w_el("tabs")
+    tab = _w_el("tab")
+    tab.set(qn("w:val"), "right")
+    tab.set(qn("w:pos"), "9000")
+    tabs.append(tab)
+    p_pr.append(tabs)
+    para.append(p_pr)
+
+    o_math_para = _m_el("oMathPara")
+    o_math_para_pr = _m_el("oMathParaPr")
+    jc_math = _m_el("jc")
+    jc_math.set(qn("m:val"), "center")
+    o_math_para_pr.append(jc_math)
+    o_math_para.append(o_math_para_pr)
+    o_math = _m_el("oMath")
+    eq_arr = _m_el("eqArr")
+    eq_arr_pr = _m_el("eqArrPr")
+    for tag, value in (("maxDist", "1"), ("objDist", "0"), ("rSp", "1")):
+        node = _m_el(tag)
+        node.set(qn("m:val"), value)
+        eq_arr_pr.append(node)
+    eq_arr.append(eq_arr_pr)
+    for line in lines:
+        e = _m_el("e")
+        for comp in line:
+            e.append(comp)
+        eq_arr.append(e)
+    o_math.append(eq_arr)
+    o_math_para.append(o_math)
+    para.append(o_math_para)
+
+    tab_run = _w_el("r")
+    tab_run.append(_w_el("tab"))
+    para.append(tab_run)
+
+    num_run = _w_el("r")
+    r_pr = _w_el("rPr")
+    r_fonts = _w_el("rFonts")
+    r_fonts.set(qn("w:ascii"), "Times New Roman")
+    r_fonts.set(qn("w:hAnsi"), "Times New Roman")
+    r_fonts.set(qn("w:eastAsia"), "宋体" if lang == "cn" else "Times New Roman")
+    r_pr.append(r_fonts)
+    sz = _w_el("sz")
+    sz.set(qn("w:val"), "21" if lang == "cn" else "22")
+    r_pr.append(sz)
+    num_run.append(r_pr)
+    t = _w_el("t")
+    t.text = f"（{eq_no}）" if lang == "cn" else f"({eq_no})"
+    num_run.append(t)
+    para.append(num_run)
     return para
 
 
@@ -383,13 +489,10 @@ def build_equation_table(equation_p, eq_no: int):
     return tbl
 
 
-def replace_with_omml_block(paragraph, lines, eq_no: int | None = None):
+def replace_with_omml_block(paragraph, lines, eq_no: int | None = None, *, lang: str = "cn"):
     parent = paragraph._element.getparent()
-    new_p = build_omml_multiline_paragraph(lines)
-    if eq_no is not None:
-        paragraph._element.addnext(build_equation_table(new_p, eq_no))
-    else:
-        paragraph._element.addnext(new_p)
+    new_p = build_equation_numbered_paragraph(lines, eq_no, lang=lang) if eq_no is not None else build_omml_multiline_paragraph(lines)
+    paragraph._element.addnext(new_p)
     parent.remove(paragraph._element)
 
 
@@ -554,9 +657,53 @@ def _has_formula_token(text: str, *tokens: str) -> bool:
     return all(token in compact for token in tokens)
 
 
-def rebuild_equation_paragraph(paragraph):
+def rebuild_equation_paragraph(paragraph, lang: str):
     text = paragraph.text.strip()
     normalized = normalize_equation_source(text)
+    if _has_formula_token(normalized, "Stability_{it}=", "SD(Return_{im})"):
+        replace_with_omml_block(
+            paragraph,
+            [[
+                math_sub("Stability", "it"),
+                math_text(" = SD"),
+                math_group([math_sub("Return", "im")]),
+            ]],
+            eq_no=1,
+            lang=lang,
+        )
+        return True
+    if _has_formula_token(normalized, "Growth_{it}=", "Revenue_{it}-Revenue_{i,t-3}"):
+        replace_with_omml_block(
+            paragraph,
+            [[
+                math_sub("Growth", "it"),
+                math_text(" = "),
+                math_sub("Revenue", "it"),
+                math_text(" - "),
+                math_sub("Revenue", "i,t-3"),
+            ]],
+            eq_no=2,
+            lang=lang,
+        )
+        return True
+    if _has_formula_token(normalized, "CR_{it}=", "z(-Stability_{it})", "z(Growth_{it})"):
+        replace_with_omml_block(
+            paragraph,
+            [[
+                math_sub("CR", "it"),
+                math_text(" = "),
+                math_sub("w", "1"),
+                math_text(" × z"),
+                math_group([math_text("-"), math_sub("Stability", "it")]),
+                math_text(" + "),
+                math_sub("w", "2"),
+                math_text(" × z"),
+                math_group([math_sub("Growth", "it")]),
+            ]],
+            eq_no=3,
+            lang=lang,
+        )
+        return True
     if text.startswith("W_kl = sum_p I(k in p) I(l in p), k != l"):
         replace_with_omml_block(
             paragraph,
@@ -571,6 +718,7 @@ def rebuild_equation_paragraph(paragraph):
                 math_text(", k ≠ l"),
             ]],
             eq_no=1,
+            lang=lang,
         )
         return True
     if _has_formula_token(normalized, "PR_{kt}=", "sum_{j\\inM(k)}", "PR_{jt}/L_{jt}"):
@@ -586,6 +734,7 @@ def rebuild_equation_paragraph(paragraph):
                 math_sub("L", "jt"),
             ]],
             eq_no=1,
+            lang=lang,
         )
         return True
     if text.startswith("PR_k = (1-d)/N + d sum_l W_lk PR_l / sum_m W_lm"):
@@ -609,6 +758,7 @@ def rebuild_equation_paragraph(paragraph):
                 ],
             ],
             eq_no=2,
+            lang=lang,
         )
         return True
     if _has_formula_token(normalized, "AIPatent_{it}=", "sum_{k\\inK_{it}}", "PR_{kt}", "N_{ikt}"):
@@ -624,6 +774,7 @@ def rebuild_equation_paragraph(paragraph):
                 math_sub("N", "ikt"),
             ]],
             eq_no=2,
+            lang=lang,
         )
         return True
     if text.startswith("AIPatent_it = sum_k N_ikt PR_kt"):
@@ -639,6 +790,45 @@ def rebuild_equation_paragraph(paragraph):
                 math_sub("PR", "kt"),
             ]],
             eq_no=3,
+            lang=lang,
+        )
+        return True
+    if _has_formula_token(normalized, "AIW_{it}=", "\\overline{AIDisclosure}_{t}", "\\sigma(AIDisclosure_{t})", "\\overline{AIPatent}_{t}", "\\sigma(AIPatent_{t})"):
+        replace_with_omml_block(
+            paragraph,
+            [
+                [
+                    math_sub("AIW", "it"),
+                    math_text(" = "),
+                    math_frac(
+                        [
+                            math_sub("AIDisclosure", "it"),
+                            math_text(" - "),
+                            math_sub_expr(math_overbar(math_rich_text("AIDisclosure", italic=False)), "t"),
+                        ],
+                        [
+                            math_text("σ"),
+                            math_group([math_sub("AIDisclosure", "t")]),
+                        ],
+                    ),
+                    math_text(" - "),
+                ],
+                [
+                    math_frac(
+                        [
+                            math_sub("AIPatent", "it"),
+                            math_text(" - "),
+                            math_sub_expr(math_overbar(math_rich_text("AIPatent", italic=False)), "t"),
+                        ],
+                        [
+                            math_text("σ"),
+                            math_group([math_sub("AIPatent", "t")]),
+                        ],
+                    ),
+                ],
+            ],
+            eq_no=4,
+            lang=lang,
         )
         return True
     if _has_formula_token(normalized, "AIW_{it}=", "z(AIDisclosure_{it})", "z(AIPatent_{it})"):
@@ -652,6 +842,7 @@ def rebuild_equation_paragraph(paragraph):
                 math_group([math_sub("AIPatent", "it")]),
             ]],
             eq_no=3,
+            lang=lang,
         )
         return True
     if text.startswith("AIW_it = z(AIDisclosure_it) - z(AIPatent_it)"):
@@ -665,6 +856,7 @@ def rebuild_equation_paragraph(paragraph):
                 math_group([math_sub("AIPatent", "it")]),
             ]],
             eq_no=4,
+            lang=lang,
         )
         return True
     if _has_formula_token(normalized, "Resilience_{it}=", "AIW_{it}", "Controls_{it}", "μ_i", "λ_t"):
@@ -698,6 +890,7 @@ def rebuild_equation_paragraph(paragraph):
                 ],
             ],
             eq_no=4,
+            lang=lang,
         )
         return True
     if text.startswith("Resilience_it = alpha_0 + alpha_1 AIW_it"):
@@ -731,6 +924,7 @@ def rebuild_equation_paragraph(paragraph):
                 ],
             ],
             eq_no=5,
+            lang=lang,
         )
         return True
     if _has_formula_token(normalized, "Channel_{it}=", "AIW_{it}", "Controls_{it}", "ν_{it}"):
@@ -764,6 +958,7 @@ def rebuild_equation_paragraph(paragraph):
                 ],
             ],
             eq_no=5,
+            lang=lang,
         )
         return True
     if text.startswith("Channel_it = gamma_0 + gamma_1 AIW_it"):
@@ -797,6 +992,7 @@ def rebuild_equation_paragraph(paragraph):
                 ],
             ],
             eq_no=6,
+            lang=lang,
         )
         return True
     if _has_formula_token(normalized, "Resilience_{it}=", "Channel_{it}", "ξ_{it}"):
@@ -834,6 +1030,7 @@ def rebuild_equation_paragraph(paragraph):
                 ],
             ],
             eq_no=6,
+            lang=lang,
         )
         return True
     if text.startswith("Resilience_it = theta_0 + theta_1 AIW_it"):
@@ -871,6 +1068,7 @@ def rebuild_equation_paragraph(paragraph):
                 ],
             ],
             eq_no=7,
+            lang=lang,
         )
         return True
     if _has_formula_token(normalized, "Outcome_{it}=", "AnalystAttention_{it}", "κ_k", "ω_{it}"):
@@ -918,6 +1116,7 @@ def rebuild_equation_paragraph(paragraph):
                 ],
             ],
             eq_no=7,
+            lang=lang,
         )
         return True
     if text.startswith("Outcome_it = rho_0 + rho_1 AIW_it"):
@@ -965,6 +1164,7 @@ def rebuild_equation_paragraph(paragraph):
                 ],
             ],
             eq_no=8,
+            lang=lang,
         )
         return True
     return False
@@ -999,6 +1199,31 @@ def rebuild_explanation_paragraph(paragraph, lang: str):
             append_run(paragraph, "其中，", east_asia, latin, size_pt)
             append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
             append_run(paragraph, " 为技术节点 k 在年份 t 的网络权重。该指标的含义是：企业并非因为拥有更多 AI 专利就自动获得更高技术行动得分，而是当其 AI 专利集中在全球 AI 知识网络中更核心、更具结构影响力的技术节点时，才获得更高的质量调整后 AI 技术积累得分。因此，AI Patent 衡量的是企业可验证 AI 技术资产的网络加权存量，而不是未经区分的专利件数。", east_asia, latin, size_pt)
+            return True
+        if text.startswith("其中，`Return_{im}` 表示企业"):
+            clear_paragraph(paragraph)
+            append_run(paragraph, "其中，", east_asia, latin, size_pt)
+            append_symbol(paragraph, "Return", "im", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 表示企业 i 在年份 t 内第 m 月的个股收益率。该指标越小，说明企业在不确定环境中的股价波动越低、风险暴露越平缓，其吸收冲击和维持稳定的能力越强。", east_asia, latin, size_pt)
+            return True
+        if text.startswith("其中，`w_1` 和 `w_2` 为熵权法确定的权重"):
+            clear_paragraph(paragraph)
+            append_run(paragraph, "其中，", east_asia, latin, size_pt)
+            append_symbol(paragraph, "w", "1", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 和 ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "w", "2", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 为熵权法确定的权重。因此，CR 取值越大，表明企业同时具备更强的短期稳定能力和中期恢复增长能力，即整体韧性水平越高。稳健性部分将进一步采用替代性韧性指标进行检验。", east_asia, latin, size_pt)
+            return True
+        if text.startswith("其中，`AIDisclosure_{it}` 表示企业") or text.startswith("其中，AIDisclosure_{it} 表示企业"):
+            clear_paragraph(paragraph)
+            append_run(paragraph, "其中，", east_asia, latin, size_pt)
+            append_symbol(paragraph, "AIDisclosure", "it", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 表示企业 i 在年份 t 的人工智能披露强度；", east_asia, latin, size_pt)
+            append_symbol(paragraph, "AIPatent", "it", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 表示企业 i 在年份 t 的人工智能专利得分。相应变量的年度横截面均值与年度横截面标准差分别用于完成同年样本内标准化。AIW 数值越大，说明企业人工智能叙事越明显领先于其实质性人工智能技术积累，人工智能洗白程度越高；反之，则说明企业人工智能技术积累相对更充分而公开叙事较为克制。为识别潜在的非线性关系，本文进一步构造平方项 ", east_asia, latin, size_pt)
+            append_run(paragraph, "AIW", east_asia, latin, size_pt)
+            append_run(paragraph, "²", east_asia, latin, size_pt)
+            append_run(paragraph, "。", east_asia, latin, size_pt)
             return True
         if text.startswith("其中，PR_{kt} 表示技术节点"):
             clear_paragraph(paragraph)
@@ -1090,6 +1315,35 @@ def rebuild_explanation_paragraph(paragraph, lang: str):
             append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
             append_run(paragraph, " is the network weight of node k in year t. This score means that a firm does not receive a higher AI-action score simply because it files more AI patents. It receives a higher score when its AI patents are concentrated in more central and structurally influential positions within the global AI knowledge network. The resulting AI Patent variable therefore measures a firm's quality-adjusted stock of verifiable AI technological assets rather than an undifferentiated patent count.", east_asia, latin, size_pt)
             return True
+        if text.startswith("where `Return_{im}` denotes the stock return"):
+            clear_paragraph(paragraph)
+            append_run(paragraph, "where ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "Return", "im", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " denotes the stock return of firm i in month m of year t. Lower values indicate lower volatility and stronger shock-absorption capability.", east_asia, latin, size_pt)
+            return True
+        if text.startswith("where `w_1` and `w_2` are the entropy-based weights"):
+            clear_paragraph(paragraph)
+            append_run(paragraph, "where ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "w", "1", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " and ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "w", "2", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " are the entropy-based weights. Higher values of CR therefore indicate stronger overall resilience, reflecting both short-term stability and medium-term recovery growth. Robustness checks use an alternative resilience measure.", east_asia, latin, size_pt)
+            return True
+        if (
+            text.startswith("where `AIDisclosure_{it}` denotes firm `i`'s AI disclosure intensity")
+            or text.startswith("where AIDisclosure_{it} denotes firm i's AI disclosure intensity")
+            or text.startswith("where AIDisclosure_{it} denotes firm i’s AI disclosure intensity")
+        ):
+            clear_paragraph(paragraph)
+            append_run(paragraph, "where ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "AIDisclosure", "it", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " denotes firm i's AI disclosure intensity in year t, and ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "AIPatent", "it", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " denotes the firm's AI patent score in year t. The yearly cross-sectional means and standard deviations of the two components are used to standardize them within the same year. Higher values indicate that AI-related narratives run further ahead of substantive AI technological accumulation. We further construct the squared term ", east_asia, latin, size_pt)
+            append_run(paragraph, "AIW", east_asia, latin, size_pt)
+            append_run(paragraph, "²", east_asia, latin, size_pt)
+            append_run(paragraph, " to test the nonlinear relationship.", east_asia, latin, size_pt)
+            return True
         if text.startswith("where PR_{kt} is the PageRank weight"):
             clear_paragraph(paragraph)
             append_run(paragraph, "where ", east_asia, latin, size_pt)
@@ -1163,7 +1417,7 @@ def format_paragraphs(doc: Document, lang: str):
     latin = "Times New Roman"
     body_size = 10.5 if lang == "cn" else 11
     for paragraph in list(doc.paragraphs):
-        if rebuild_equation_paragraph(paragraph):
+        if rebuild_equation_paragraph(paragraph, lang):
             continue
         if rebuild_explanation_paragraph(paragraph, lang):
             set_paragraph_format(paragraph, lang, in_table=False)
@@ -1228,6 +1482,27 @@ def consolidate_existing_equation_numbers(doc: Document):
         body.remove(nxt)
         children = list(body)
         idx += 1
+
+
+def renumber_equation_tables(doc: Document):
+    body = doc._element.body
+    eq_no = 1
+    for child in list(body):
+        if child.tag != qn("w:tbl"):
+            continue
+        xml = child.xml
+        if "<m:oMath" not in xml and "<m:oMathPara" not in xml:
+            continue
+        cells = child.findall(f".//{{{W_NS}}}tc")
+        if len(cells) < 2:
+            continue
+        text_nodes = cells[-1].findall(f".//{{{W_NS}}}t")
+        if not text_nodes:
+            continue
+        text_nodes[0].text = f"（{eq_no}）"
+        for node in text_nodes[1:]:
+            node.text = ""
+        eq_no += 1
 
 
 def force_caption_alignment(doc: Document):
@@ -1301,6 +1576,17 @@ def validate_docx(path: Path, citation_policy: str = "strict"):
     for old_name in ("CR_it", "Y_it", "Mediator_it", "ROA1", "Balance1", "Mshare", "Occupy"):
         if old_name in xml:
             raise RuntimeError(f"{path} still contains deprecated variable token: {old_name}")
+    for raw_formula in (
+        "Stability_{it}",
+        "Growth_{it}",
+        "CR_{it}",
+        "\\overline{AIDisclosure}_{t}",
+        "\\overline{AIPatent}_{t}",
+        "\\sigma(AIDisclosure_{t})",
+        "\\sigma(AIPatent_{t})",
+    ):
+        if raw_formula in xml:
+            raise RuntimeError(f"{path} still contains raw formula residue: {raw_formula}")
     if "<wp:anchor" in xml:
         raise RuntimeError(f"{path} contains floating anchor images")
 
@@ -1326,6 +1612,7 @@ def main():
     set_style_fonts(doc, args.lang)
     format_paragraphs(doc, args.lang)
     consolidate_existing_equation_numbers(doc)
+    renumber_equation_tables(doc)
     if args.lang == "cn":
         normalize_plain_chinese_paragraphs(doc)
     force_caption_alignment(doc)
