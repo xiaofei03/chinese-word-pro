@@ -84,6 +84,16 @@ python3 "<skill-dir>/scripts/export_pdf_fixed.py" \
   --render-dir "<rendered_pages>"
 ```
 
+For ordinary Chinese report theme cleanup before PDF export or delivery, run:
+
+```bash
+python3 "<skill-dir>/scripts/clean_report_theme.py" \
+  --input-docx "<temp.docx>" \
+  --output-docx "<temp_clean.docx>"
+```
+
+This cleaner is the default defense against hidden blue heading residue from Word base templates. It audits and repairs `word/document.xml`, `word/styles.xml`, and `word/theme/theme1.xml` together instead of only changing visible run colors.
+
 ## Default Chinese Document Style
 
 - Page: A4-like defaults, top/bottom 2.54 cm, left 3.0 cm, right 2.7 cm.
@@ -159,6 +169,7 @@ If the helper cannot recover Zotero, use Computer Use for one GUI attempt to sel
 2. Generate a temporary DOCX with the project-approved export chain.
 3. If the project uses citation fields, verify that the temporary DOCX still contains them before post-processing.
 4. Run DOCX post-processing to repair Word-structure issues such as figure sizing, table borders, paragraph indentation, and inline symbol rendering.
+4a. For ordinary Chinese reports, run `scripts/clean_report_theme.py` before render QA so `Title`/`Heading` theme residue does not survive into another machine's Word/WPS rendering.
 5. If the project uses citation fields, verify again that post-processing preserved them.
 6. If rendering is available, run visual QA on page images/PDF before delivery.
 7. If rendering is not available, explicitly disclose that structural fixes were applied but automatic page-image QA was not completed.
@@ -196,6 +207,7 @@ Non-citation-managed mode:
 - Always inspect table paragraphs for `first_line_indent`, `left_indent`, and `right_indent`; academic tables should normally reset all of them to zero unless the user explicitly requests otherwise.
 - When inline formulas or symbol explanations are prone to corruption in Word, prefer native Word runs with explicit subscript formatting over trusting automatic math conversion.
 - Before overwriting a user-facing DOCX, write a temporary output first so an open file or a failed pass does not destroy the working draft.
+- When the source path uses Word's built-in styles or a generic `python-docx Document()` base template, assume hidden blue theme residue exists until `document.xml`, `styles.xml`, and `theme1.xml` have passed audit.
 - If post-processing removes or flattens citation fields, treat that as a delivery failure, not a minor defect.
 - Do not directly hand-edit the previous "healthy" final DOCX and treat that as the new delivery baseline; always re-export from Markdown, then re-run finalization.
 - Chinese and English final DOCX outputs must be finalized with the same structural rule set unless the user explicitly requests divergence.

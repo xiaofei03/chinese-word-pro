@@ -12,6 +12,14 @@
 1. 先生成 UTF-8 Markdown/JSON 内容源。
 2. 生成临时 DOCX，不直接覆盖最终文件。
 3. 对 DOCX 做结构后处理：字体、标题边框、图文块、三线表、段落缩进、表格长文本拆分。
+4. 对报告类 DOCX 运行主题清理，移除 `styles.xml` 和 `theme1.xml` 中的蓝色标题残留、`accent1` 主题色、标题边框和下划线。推荐使用：
+
+```bash
+python3 /Users/xiaofei/.codex/skills/chinese-word-pro/scripts/clean_report_theme.py \
+  --input-docx temp.docx \
+  --output-docx temp_clean.docx
+```
+
 4. 检查 `word/document.xml`、`word/styles.xml` 和 `word/theme/theme1.xml`，确认无乱码、无蓝色标题残留、无异常段落边框。
 5. 用 `scripts/export_pdf_fixed.py` 导出 PDF，并渲染 PNG 页面做视觉 QA。
 6. 重点抽检标题页、第一张表所在页、主要图表页、最后一个风险表页。
@@ -63,6 +71,7 @@
 - 普通中文报告不能只依赖肉眼检查标题是否变黑，必须检查底层 XML。
 - 蓝色残留检查至少覆盖 `word/document.xml`、`word/styles.xml` 和 `word/theme/theme1.xml`。
 - 必须清理或替换 `4F81BD`、`w:themeColor="accent1"`、`w:themeFill="accent1"`、`<w:u .../>` 和标题相关 `<w:pBdr>...</w:pBdr>`。
+- 对报告类文档，优先使用 `scripts/clean_report_theme.py` 作为通用清理器，再做人工或渲染复检。
 - 如果仅剩 `word/settings.xml` 中的 `w:accent1="accent1"` 映射，一般不是可见样式问题；但 `styles.xml` 或 `theme1.xml` 中仍有蓝色值时，不能交付。
 - XML 清理脚本要先匹配 `word/theme/*.xml`，再匹配普通 `word/*.xml`。不要让 `theme1.xml` 被普通分支提前处理，否则主题色可能残留。
 
