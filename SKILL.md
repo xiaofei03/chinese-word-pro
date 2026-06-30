@@ -154,6 +154,87 @@ This skill is the Word finalization authority. It owns the final post-processing
 - XML-level garbling checks
 - citation-field preservation checks
 
+### Formula Finalization Pipeline
+
+For academic manuscripts, formula handling is a first-class delivery subsystem rather than an afterthought.
+
+The pipeline is mandatory:
+
+1. `Formula Inventory`
+2. `Inline Symbol Renderer`
+3. `OMML Equation Compiler`
+4. `Formula Delivery Audit`
+
+The purpose is to prevent the common failure mode in which a document looks acceptable in one project, but breaks as soon as a new equation, a longer model specification, or a new explanatory paragraph is added in another project.
+
+### Formula Inventory
+
+Before final overwrite, the workflow must treat all formula-bearing content as an audited set, not as ad hoc strings.
+
+The inventory must cover at least:
+
+- numbered empirical models
+- measurement formulas
+- weighting, network, standardization, and interaction formulas
+- long or multiline equations
+- explanation paragraphs immediately below formulas
+- repeated coefficient symbols, Greek letters, and indexed variables used again in prose
+
+The implementation may infer this inventory automatically from the DOCX and source text, but formal delivery must behave as though this inventory exists and has been checked.
+
+### Inline Symbol Renderer
+
+The inline symbol renderer is responsible for formula-like content that appears in ordinary prose rather than display-equation blocks.
+
+Its default job is to convert raw or collapsed notation into Word-native subscript or superscript runs, including:
+
+- braced forms such as `K_{it}`, `PR_{kt}`, `N_{ikt}`, `L_{jt}`, `Return_{im}`
+- simple underscore forms such as `Y_it`, `CR_it`, `AIW_it`, `Outcome_it`
+- collapsed residue such as `Resilienceit`, `AIWit`, `Controlsit`, `Outcomeit`, `w1`, `w2`, `μi`, `λt`, `εit`
+- squared-term expressions in explanatory prose such as `AIW²`
+
+Hard rule:
+
+- any symbol that appears in a formal equation and is repeated in explanation prose must be rendered as readable Word-native notation in that prose as well; it must not be delivered as raw underscore text, collapsed plain text, or pseudo-LaTeX residue
+
+### OMML Equation Compiler
+
+The OMML equation compiler is responsible for numbered display equations.
+
+Default policy:
+
+- convert display equations to native Word math objects
+- prefer one numbered equation paragraph rather than disconnected equation and number paragraphs
+- use a right-aligned tab stop for numbering by default
+- keep equation number on the same visual row as the equation
+- for short equations, keep a single formula row
+- for long equations, keep one equation paragraph but automatically wrap the formula into multiple visual lines inside that paragraph instead of reverting to ordinary text
+- if a previously exported file contains a formula paragraph plus a separate orphan number paragraph, merge them back into one numbered equation paragraph and delete the orphan number paragraph
+
+The default general-purpose strategy is therefore:
+
+- `native OMML equation`
+- `same numbered paragraph`
+- `right-aligned tab stop`
+- `automatic internal wrapping for overlong equations`
+
+Visible table fallbacks are not the preferred solution for formal delivery.
+
+### Formula Delivery Audit
+
+Formal delivery must fail closed when formula structure is unsafe.
+
+The formula audit must verify all of the following:
+
+- display equations that should be native math contain `m:oMath` or `m:eqArr`
+- no orphan equation-number-only paragraphs remain after finalization
+- equation numbers stay on the same numbered equation paragraph and are right-aligned through tab-stop layout
+- long equations are wrapped inside the equation paragraph rather than overflowing the page as one unbroken line
+- explanation paragraphs do not expose raw source-like strings such as `Y_it`, `CR_it`, `Return_{im}`, `K_{it}`, `PR_{kt}`, `N_{ikt}`, `L_{jt}`, or collapsed residue such as `Resilienceit`, `Outcomeit`, `w1`, `w2`
+- Greek letters, indexed coefficients, and disturbance terms used in prose are delivered with true subscript formatting
+
+If any of these checks fail, the DOCX is not formal-delivery-safe and must not overwrite the main manuscript file.
+
 When Zotero live citation fields are required, this skill also provides the downstream recovery helper for citation-manager readiness before Word export:
 
 - locate and open Zotero if closed
@@ -206,6 +287,8 @@ Non-citation-managed mode:
 - Do not assume the reference template will automatically fix three-line tables, figure sizing, inline symbols, or paragraph indentation.
 - Always inspect table paragraphs for `first_line_indent`, `left_indent`, and `right_indent`; academic tables should normally reset all of them to zero unless the user explicitly requests otherwise.
 - When inline formulas or symbol explanations are prone to corruption in Word, prefer native Word runs with explicit subscript formatting over trusting automatic math conversion.
+- If a symbol appears in both a display equation and its explanatory paragraph, the explanatory paragraph must be repaired too; fixing the display equation alone is insufficient.
+- Do not treat a successful formula conversion in XML as enough. The workflow must also guard against visual failures caused by orphan numbering paragraphs, collapsed symbols, and overlong one-line equations.
 - Before overwriting a user-facing DOCX, write a temporary output first so an open file or a failed pass does not destroy the working draft.
 - When the source path uses Word's built-in styles or a generic `python-docx Document()` base template, assume hidden blue theme residue exists until `document.xml`, `styles.xml`, and `theme1.xml` have passed audit.
 - If post-processing removes or flattens citation fields, treat that as a delivery failure, not a minor defect.
@@ -220,9 +303,12 @@ Before a final DOCX is allowed to overwrite the main deliverable, the post-proce
 - live citation fields still exist in `word/document.xml`
 - `m:oMath` or `m:eqArr` objects exist when model equations are present
 - equation numbers stay on the same visual line as their equations and are right-aligned
+- no orphan equation-number-only paragraphs remain after finalization
+- long equations use the single-equation-paragraph wrapping strategy instead of a page-overflowing one-line block
 - equation layout tables are borderless, are not processed as three-line tables, and contain no fixed line-height residues
 - explanation paragraphs no longer expose broken pseudo-formula forms such as `Y_it`, `CR_it`, or `z(...)` as raw degraded text
 - inline explanatory variables such as `K_{it}`, `PR_{kt}`, `N_{ikt}`, `L_{jt}`, and similar patent/network notation are converted to real subscript runs rather than delivered as raw underscore text
+- collapsed symbolic residues such as `Resilienceit`, `AIWit`, `Outcomeit`, `w1`, `w2`, `μi`, `λt`, and `εit` are converted to true subscript runs where required
 - figures are inline rather than floating anchors
 - figure captions are independent paragraphs and retain numbering
 - three-line tables remain structurally intact

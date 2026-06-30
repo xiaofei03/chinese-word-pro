@@ -24,6 +24,53 @@ CN_PUNCT_MAP = str.maketrans({
     "!": "！",
 })
 
+BRACED_SUBSCRIPT_RE = re.compile(r"([A-Za-zΑ-Ωα-ωΣμλβεω]+)_\{([^{}]+)\}")
+SIMPLE_SUBSCRIPT_RE = re.compile(r"([A-Za-zΑ-Ωα-ωΣμλβεω]+)_([A-Za-z0-9]+)")
+EQUATION_NO_ONLY_RE = re.compile(r"^[\t\s（）()0-9]+$")
+
+INLINE_SUBSCRIPT_AUDIT_PATTERNS = {
+    "Resilienceit": "it",
+    "AIWit": "it",
+    "Controlsit": "it",
+    "Channelit": "it",
+    "Outcomeit": "it",
+    "AnalystAttentionit": "it",
+    "AIDisclosureit": "it",
+    "AIPatentit": "it",
+    "Returnim": "im",
+    "PRkt": "kt",
+    "Kit": "it",
+    "Nikt": "ikt",
+    "Ljt": "jt",
+    "μi": "i",
+    "λt": "t",
+    "εit": "it",
+    "νit": "it",
+    "ξit": "it",
+    "ωit": "it",
+    "w1": "1",
+    "w2": "2",
+    "α1": "1",
+    "α2": "2",
+    "βk": "k",
+    "δk": "k",
+    "φk": "k",
+    "κk": "k",
+    "γ0": "0",
+    "γ1": "1",
+    "γ2": "2",
+    "θ0": "0",
+    "θ1": "1",
+    "θ2": "2",
+    "θ3": "3",
+    "ρ0": "0",
+    "ρ1": "1",
+    "ρ2": "2",
+    "ρ3": "3",
+    "ρ4": "4",
+    "ρ5": "5",
+}
+
 
 def is_caption_text(text: str) -> bool:
     text = text.strip()
@@ -124,6 +171,143 @@ def append_symbol(paragraph, base: str, sub: str | None, east_asia: str, latin: 
     append_run(paragraph, base, east_asia, latin, size_pt, italic=(False if greek else italic))
     if sub:
         append_run(paragraph, sub, east_asia, latin, size_pt - 1, italic=(False if greek else italic), subscript=True)
+
+
+def reset_paragraph_runs(paragraph):
+    p = paragraph._element
+    for child in list(p):
+        if child.tag != qn("w:pPr"):
+            p.remove(child)
+
+
+def paragraph_has_fields(paragraph) -> bool:
+    p = paragraph._element
+    return bool(
+        p.findall(f".//{{{W_NS}}}fldChar")
+        or p.findall(f".//{{{W_NS}}}instrText")
+        or p.findall(f".//{{{W_NS}}}hyperlink")
+    )
+
+
+def _find_next_inline_symbol(text: str, start: int):
+    braced = BRACED_SUBSCRIPT_RE.search(text, start)
+    simple = SIMPLE_SUBSCRIPT_RE.search(text, start)
+    candidates = [m for m in (braced, simple) if m]
+    if not candidates:
+        return None
+    match = min(candidates, key=lambda m: (m.start(), m.end()))
+    if match.re is SIMPLE_SUBSCRIPT_RE and braced and braced.start() == match.start():
+        return braced
+    return match
+
+
+def rebuild_inline_symbol_paragraph(paragraph, lang: str) -> bool:
+    if paragraph_has_fields(paragraph) or paragraph_has_drawing(paragraph):
+        return False
+    if paragraph._element.findall(f".//{{{M_NS}}}oMath") or paragraph._element.findall(f".//{{{M_NS}}}oMathPara"):
+        return False
+
+    original = paragraph.text
+    if "_{" not in original and not SIMPLE_SUBSCRIPT_RE.search(original):
+        return False
+
+    text = original.replace("`", "")
+    east_asia = "宋体" if lang == "cn" else "Times New Roman"
+    latin = "Times New Roman"
+    size_pt = 10.5 if lang == "cn" else 11
+
+    matches = list(BRACED_SUBSCRIPT_RE.finditer(text))
+    if not matches and not SIMPLE_SUBSCRIPT_RE.search(text):
+        return False
+
+    clear_paragraph(paragraph)
+    idx = 0
+    while idx < len(text):
+        match = _find_next_inline_symbol(text, idx)
+        if not match:
+            append_run(paragraph, text[idx:], east_asia, latin, size_pt)
+            break
+        if match.start() > idx:
+            append_run(paragraph, text[idx:match.start()], east_asia, latin, size_pt)
+        base, sub = match.group(1), match.group(2)
+        append_symbol(paragraph, base, sub, east_asia, latin, size_pt, italic=False, greek=(base in {"μ", "λ", "ε", "α", "β", "ω", "Σ"}))
+        idx = match.end()
+    return True
+
+
+def rebuild_collapsed_symbol_paragraph(paragraph, lang: str) -> bool:
+    text = paragraph.text.strip()
+    east_asia = "宋体" if lang == "cn" else "Times New Roman"
+    latin = "Times New Roman"
+    size_pt = 10.5 if lang == "cn" else 11
+
+    symbol_map = [
+        ("Resilienceit", ("Resilience", "it")),
+        ("Resilienceit²", ("Resilience", "it")),
+        ("AIWit", ("AIW", "it")),
+        ("AIWit²", ("AIW", "it")),
+        ("Controlsit", ("Controls", "it")),
+        ("Channelit", ("Channel", "it")),
+        ("Outcomeit", ("Outcome", "it")),
+        ("AnalystAttentionit", ("AnalystAttention", "it")),
+        ("AIDisclosureit", ("AIDisclosure", "it")),
+        ("AIPatentit", ("AIPatent", "it")),
+        ("Returnim", ("Return", "im")),
+        ("PRkt", ("PR", "kt")),
+        ("Kit", ("K", "it")),
+        ("Nikt", ("N", "ikt")),
+        ("μi", ("μ", "i")),
+        ("λt", ("λ", "t")),
+        ("εit", ("ε", "it")),
+        ("νit", ("ν", "it")),
+        ("ξit", ("ξ", "it")),
+        ("ωit", ("ω", "it")),
+        ("w1", ("w", "1")),
+        ("w2", ("w", "2")),
+        ("α1", ("α", "1")),
+        ("α2", ("α", "2")),
+        ("βk", ("β", "k")),
+        ("δk", ("δ", "k")),
+        ("φk", ("φ", "k")),
+        ("κk", ("κ", "k")),
+        ("γ0", ("γ", "0")),
+        ("γ1", ("γ", "1")),
+        ("γ2", ("γ", "2")),
+        ("θ0", ("θ", "0")),
+        ("θ1", ("θ", "1")),
+        ("θ2", ("θ", "2")),
+        ("θ3", ("θ", "3")),
+        ("ρ0", ("ρ", "0")),
+        ("ρ1", ("ρ", "1")),
+        ("ρ2", ("ρ", "2")),
+        ("ρ3", ("ρ", "3")),
+        ("ρ4", ("ρ", "4")),
+        ("ρ5", ("ρ", "5")),
+    ]
+    if not any(token in text for token, _ in symbol_map):
+        return False
+    if paragraph_has_fields(paragraph) or paragraph_has_drawing(paragraph):
+        return False
+
+    reset_paragraph_runs(paragraph)
+    cursor = 0
+    while cursor < len(text):
+        next_match = None
+        next_idx = len(text)
+        for token, payload in symbol_map:
+            idx = text.find(token, cursor)
+            if idx != -1 and idx < next_idx:
+                next_match = (idx, token, payload)
+                next_idx = idx
+        if next_match is None:
+            append_run(paragraph, text[cursor:], east_asia, latin, size_pt)
+            break
+        idx, token, (base, sub) = next_match
+        if idx > cursor:
+            append_run(paragraph, text[cursor:idx], east_asia, latin, size_pt)
+        append_symbol(paragraph, base, sub, east_asia, latin, size_pt, italic=False, greek=(base in {"μ", "λ", "ε", "ν", "ξ", "ω", "α", "β", "γ", "δ", "φ", "κ", "ρ", "θ"}))
+        cursor = idx + len(token)
+    return True
 
 
 def _m_el(tag: str):
@@ -236,6 +420,44 @@ def math_overbar(element):
     return acc
 
 
+def _math_component_text(component) -> str:
+    return "".join(t.text or "" for t in component.findall(f".//{{{M_NS}}}t"))
+
+
+def _auto_wrap_math_lines(lines, *, max_chars: int = 78, soft_threshold: int = 52):
+    wrapped = []
+    for line in lines:
+        line_text = "".join(_math_component_text(comp) for comp in line)
+        if len(line_text) <= max_chars:
+            wrapped.append(line)
+            continue
+
+        current = []
+        current_chars = 0
+        for comp in line:
+            comp_text = _math_component_text(comp)
+            stripped = comp_text.strip()
+            should_break = (
+                current
+                and current_chars >= soft_threshold
+                and (
+                    stripped.startswith("+")
+                    or stripped.startswith("-")
+                    or stripped.startswith("×")
+                )
+            )
+            if should_break:
+                wrapped.append(current)
+                current = [deepcopy(comp)]
+                current_chars = len(comp_text)
+                continue
+            current.append(deepcopy(comp))
+            current_chars += len(comp_text)
+        if current:
+            wrapped.append(current)
+    return wrapped
+
+
 def build_omml_multiline_paragraph(lines):
     o_math_para = _m_el("oMathPara")
     o_math_para_pr = _m_el("oMathParaPr")
@@ -269,10 +491,11 @@ def build_omml_multiline_paragraph(lines):
 
 
 def build_equation_numbered_paragraph(lines, eq_no: int, *, lang: str):
+    lines = _auto_wrap_math_lines(lines)
     para = OxmlElement("w:p")
     p_pr = _w_el("pPr")
     jc = _w_el("jc")
-    jc.set(qn("w:val"), "center")
+    jc.set(qn("w:val"), "left")
     p_pr.append(jc)
     ind = _w_el("ind")
     ind.set(qn("w:left"), "0")
@@ -285,6 +508,10 @@ def build_equation_numbered_paragraph(lines, eq_no: int, *, lang: str):
     spacing.set(qn("w:lineRule"), "auto")
     p_pr.append(spacing)
     tabs = _w_el("tabs")
+    center_tab = _w_el("tab")
+    center_tab.set(qn("w:val"), "center")
+    center_tab.set(qn("w:pos"), "4500")
+    tabs.append(center_tab)
     tab = _w_el("tab")
     tab.set(qn("w:val"), "right")
     tab.set(qn("w:pos"), "9000")
@@ -292,28 +519,20 @@ def build_equation_numbered_paragraph(lines, eq_no: int, *, lang: str):
     p_pr.append(tabs)
     para.append(p_pr)
 
-    o_math_para = _m_el("oMathPara")
-    o_math_para_pr = _m_el("oMathParaPr")
-    jc_math = _m_el("jc")
-    jc_math.set(qn("m:val"), "center")
-    o_math_para_pr.append(jc_math)
-    o_math_para.append(o_math_para_pr)
-    o_math = _m_el("oMath")
-    eq_arr = _m_el("eqArr")
-    eq_arr_pr = _m_el("eqArrPr")
-    for tag, value in (("maxDist", "1"), ("objDist", "0"), ("rSp", "1")):
-        node = _m_el(tag)
-        node.set(qn("m:val"), value)
-        eq_arr_pr.append(node)
-    eq_arr.append(eq_arr_pr)
-    for line in lines:
-        e = _m_el("e")
+    for idx, line in enumerate(lines):
+        leading_tab_run = _w_el("r")
+        leading_tab_run.append(_w_el("tab"))
+        para.append(leading_tab_run)
+
+        o_math = _m_el("oMath")
         for comp in line:
-            e.append(comp)
-        eq_arr.append(e)
-    o_math.append(eq_arr)
-    o_math_para.append(o_math)
-    para.append(o_math_para)
+            o_math.append(deepcopy(comp))
+        para.append(o_math)
+
+        if idx < len(lines) - 1:
+            br_run = _w_el("r")
+            br_run.append(_w_el("br"))
+            para.append(br_run)
 
     tab_run = _w_el("r")
     tab_run.append(_w_el("tab"))
@@ -335,6 +554,98 @@ def build_equation_numbered_paragraph(lines, eq_no: int, *, lang: str):
     num_run.append(t)
     para.append(num_run)
     return para
+
+
+def _clone_math_line_from_eqarr(eqarr_line):
+    cloned = []
+    for comp in list(eqarr_line):
+        cloned.append(deepcopy(comp))
+    return cloned
+
+
+def normalize_existing_omml_numbered_paragraphs(doc: Document, lang: str):
+    body = doc._element.body
+    for p in list(body):
+        if p.tag != qn("w:p"):
+            continue
+        o_math_para = p.find(qn("m:oMathPara"))
+        if o_math_para is None:
+            continue
+        texts = [t.text or "" for t in p.findall(f".//{{{W_NS}}}t")]
+        joined = "".join(texts)
+        eq_no = _parse_equation_number(joined)
+        if eq_no is None:
+            continue
+        eqarr = o_math_para.find(f".//{{{M_NS}}}eqArr")
+        if eqarr is None:
+            continue
+        lines = [_clone_math_line_from_eqarr(e) for e in eqarr.findall(f"./{{{M_NS}}}e")]
+        if not lines:
+            continue
+        new_p = build_equation_numbered_paragraph(lines, eq_no, lang=lang)
+        body.insert(body.index(p), new_p)
+        body.remove(p)
+
+
+def _extract_math_lines_from_omath(omath):
+    eqarr = omath.find(qn("m:eqArr"))
+    if eqarr is not None:
+        lines = []
+        for e in eqarr.findall(qn("m:e")):
+            lines.append(_clone_math_line_from_eqarr(e))
+        return lines
+    return [[deepcopy(comp) for comp in list(omath)]]
+
+
+def _extract_math_lines_from_paragraph_xml(p):
+    o_math_para = p.find(qn("m:oMathPara"))
+    if o_math_para is not None:
+        o_math = o_math_para.find(qn("m:oMath"))
+        if o_math is not None:
+            return _extract_math_lines_from_omath(o_math)
+    o_math = p.find(qn("m:oMath"))
+    if o_math is not None:
+        return _extract_math_lines_from_omath(o_math)
+    return None
+
+
+def _extract_math_lines_from_table_xml(tbl):
+    for cell in tbl.findall(f".//{{{W_NS}}}tc"):
+        for p in cell.findall(f"./{{{W_NS}}}p"):
+            lines = _extract_math_lines_from_paragraph_xml(p)
+            if lines:
+                return lines
+    return None
+
+
+def _extract_equation_number_from_table_xml(tbl):
+    for cell in reversed(tbl.findall(f".//{{{W_NS}}}tc")):
+        texts = "".join(t.text or "" for t in cell.findall(f".//{{{W_NS}}}t")).strip()
+        eq_no = _parse_equation_number(texts)
+        if eq_no is not None:
+            return eq_no
+    return None
+
+
+def normalize_display_equation_paragraphs(doc: Document, lang: str):
+    body = doc._element.body
+    eq_no = 1
+    for node in list(body):
+        lines = None
+        if node.tag == qn("w:p"):
+            lines = _extract_math_lines_from_paragraph_xml(node)
+            if lines:
+                visible_text = _paragraph_text_xml(node).strip()
+                if visible_text and _parse_equation_number(visible_text) is None:
+                    lines = None
+        elif node.tag == qn("w:tbl"):
+            lines = _extract_math_lines_from_table_xml(node)
+        if not lines:
+            continue
+        new_p = build_equation_numbered_paragraph(lines, eq_no, lang=lang)
+        body.insert(body.index(node), new_p)
+        body.remove(node)
+        eq_no += 1
 
 
 def build_text_paragraph(text: str, align: str = "right"):
@@ -446,7 +757,7 @@ def _set_paragraph_spacing_xml(p, *, before: int = 80, after: int = 80, align: s
         del spacing.attrib[qn("w:line")]
 
 
-def build_equation_table(equation_p, eq_no: int):
+def build_equation_table(equation_p, eq_no: int, *, lang: str = "cn"):
     """Build a borderless two-cell equation block with same-line numbering."""
     tbl = _w_el("tbl")
     tbl_pr = _w_el("tblPr")
@@ -483,7 +794,7 @@ def build_equation_table(equation_p, eq_no: int):
     _set_paragraph_spacing_xml(eq_p, before=80, after=80, align="center")
     eq_cell.append(eq_p)
 
-    no_p = build_text_paragraph(f"（{eq_no}）", align="right")
+    no_p = build_text_paragraph(f"（{eq_no}）" if lang == "cn" else f"({eq_no})", align="right")
     _set_paragraph_spacing_xml(no_p, before=80, after=80, align="right")
     no_cell.append(no_p)
     return tbl
@@ -896,33 +1207,29 @@ def rebuild_equation_paragraph(paragraph, lang: str):
     if text.startswith("Resilience_it = alpha_0 + alpha_1 AIW_it"):
         replace_with_omml_block(
             paragraph,
-            [
-                [
-                    math_sub("Resilience", "it"),
-                    math_text(" = "),
-                    math_sub("α", "0"),
-                    math_text(" + "),
-                    math_sub("α", "1"),
-                    math_text(" "),
-                    math_sub("AIW", "it"),
-                    math_text(" + "),
-                    math_sub("α", "2"),
-                    math_text(" "),
-                    math_subsup("AIW", "it", "2"),
-                    math_text(" + Σ "),
-                    math_sub("β", "k"),
-                    math_text(" "),
-                    math_sub("Controls", "it"),
-                ],
-                [
-                    math_text("+ "),
-                    math_sub("μ", "i"),
-                    math_text(" + "),
-                    math_sub("λ", "t"),
-                    math_text(" + "),
-                    math_sub("ε", "it"),
-                ],
-            ],
+            [[
+                math_sub("Resilience", "it"),
+                math_text(" = "),
+                math_sub("α", "0"),
+                math_text(" + "),
+                math_sub("α", "1"),
+                math_text(" "),
+                math_sub("AIW", "it"),
+                math_text(" + "),
+                math_sub("α", "2"),
+                math_text(" "),
+                math_subsup("AIW", "it", "2"),
+                math_text(" + Σ "),
+                math_sub("β", "k"),
+                math_text(" "),
+                math_sub("Controls", "it"),
+                math_text(" + "),
+                math_sub("μ", "i"),
+                math_text(" + "),
+                math_sub("λ", "t"),
+                math_text(" + "),
+                math_sub("ε", "it"),
+            ]],
             eq_no=5,
             lang=lang,
         )
@@ -964,33 +1271,29 @@ def rebuild_equation_paragraph(paragraph, lang: str):
     if text.startswith("Channel_it = gamma_0 + gamma_1 AIW_it"):
         replace_with_omml_block(
             paragraph,
-            [
-                [
-                    math_sub("Channel", "it"),
-                    math_text(" = "),
-                    math_sub("γ", "0"),
-                    math_text(" + "),
-                    math_sub("γ", "1"),
-                    math_text(" "),
-                    math_sub("AIW", "it"),
-                    math_text(" + "),
-                    math_sub("γ", "2"),
-                    math_text(" "),
-                    math_subsup("AIW", "it", "2"),
-                    math_text(" + Σ "),
-                    math_sub("δ", "k"),
-                    math_text(" "),
-                    math_sub("Controls", "it"),
-                ],
-                [
-                    math_text("+ "),
-                    math_sub("μ", "i"),
-                    math_text(" + "),
-                    math_sub("λ", "t"),
-                    math_text(" + "),
-                    math_sub("ν", "it"),
-                ],
-            ],
+            [[
+                math_sub("Channel", "it"),
+                math_text(" = "),
+                math_sub("γ", "0"),
+                math_text(" + "),
+                math_sub("γ", "1"),
+                math_text(" "),
+                math_sub("AIW", "it"),
+                math_text(" + "),
+                math_sub("γ", "2"),
+                math_text(" "),
+                math_subsup("AIW", "it", "2"),
+                math_text(" + Σ "),
+                math_sub("δ", "k"),
+                math_text(" "),
+                math_sub("Controls", "it"),
+                math_text(" + "),
+                math_sub("μ", "i"),
+                math_text(" + "),
+                math_sub("λ", "t"),
+                math_text(" + "),
+                math_sub("ν", "it"),
+            ]],
             eq_no=6,
             lang=lang,
         )
@@ -1036,37 +1339,33 @@ def rebuild_equation_paragraph(paragraph, lang: str):
     if text.startswith("Resilience_it = theta_0 + theta_1 AIW_it"):
         replace_with_omml_block(
             paragraph,
-            [
-                [
-                    math_sub("Resilience", "it"),
-                    math_text(" = "),
-                    math_sub("θ", "0"),
-                    math_text(" + "),
-                    math_sub("θ", "1"),
-                    math_text(" "),
-                    math_sub("AIW", "it"),
-                    math_text(" + "),
-                    math_sub("θ", "2"),
-                    math_text(" "),
-                    math_subsup("AIW", "it", "2"),
-                    math_text(" + "),
-                    math_sub("θ", "3"),
-                    math_text(" "),
-                    math_sub("Channel", "it"),
-                ],
-                [
-                    math_text("+ Σ "),
-                    math_sub("φ", "k"),
-                    math_text(" "),
-                    math_sub("Controls", "it"),
-                    math_text(" + "),
-                    math_sub("μ", "i"),
-                    math_text(" + "),
-                    math_sub("λ", "t"),
-                    math_text(" + "),
-                    math_sub("ξ", "it"),
-                ],
-            ],
+            [[
+                math_sub("Resilience", "it"),
+                math_text(" = "),
+                math_sub("θ", "0"),
+                math_text(" + "),
+                math_sub("θ", "1"),
+                math_text(" "),
+                math_sub("AIW", "it"),
+                math_text(" + "),
+                math_sub("θ", "2"),
+                math_text(" "),
+                math_subsup("AIW", "it", "2"),
+                math_text(" + "),
+                math_sub("θ", "3"),
+                math_text(" "),
+                math_sub("Channel", "it"),
+                math_text(" + Σ "),
+                math_sub("φ", "k"),
+                math_text(" "),
+                math_sub("Controls", "it"),
+                math_text(" + "),
+                math_sub("μ", "i"),
+                math_text(" + "),
+                math_sub("λ", "t"),
+                math_text(" + "),
+                math_sub("ξ", "it"),
+            ]],
             eq_no=7,
             lang=lang,
         )
@@ -1122,47 +1421,41 @@ def rebuild_equation_paragraph(paragraph, lang: str):
     if text.startswith("Outcome_it = rho_0 + rho_1 AIW_it"):
         replace_with_omml_block(
             paragraph,
-            [
-                [
-                    math_sub("Outcome", "it"),
-                    math_text(" = "),
-                    math_sub("ρ", "0"),
-                    math_text(" + "),
-                    math_sub("ρ", "1"),
-                    math_text(" "),
-                    math_sub("AIW", "it"),
-                    math_text(" + "),
-                    math_sub("ρ", "2"),
-                    math_text(" "),
-                    math_subsup("AIW", "it", "2"),
-                    math_text(" + "),
-                    math_sub("ρ", "3"),
-                    math_text(" "),
-                    math_sub("AnalystAttention", "it"),
-                ],
-                [
-                    math_text("+ "),
-                    math_sub("ρ", "4"),
-                    math_text(" "),
-                    math_group([math_sub("AIW", "it"), math_text(" × "), math_sub("AnalystAttention", "it")]),
-                    math_text(" + "),
-                    math_sub("ρ", "5"),
-                    math_text(" "),
-                    math_group([math_subsup("AIW", "it", "2"), math_text(" × "), math_sub("AnalystAttention", "it")]),
-                ],
-                [
-                    math_text("+ Σ "),
-                    math_sub("κ", "k"),
-                    math_text(" "),
-                    math_sub("Controls", "it"),
-                    math_text(" + "),
-                    math_sub("μ", "i"),
-                    math_text(" + "),
-                    math_sub("λ", "t"),
-                    math_text(" + "),
-                    math_sub("ω", "it"),
-                ],
-            ],
+            [[
+                math_sub("Outcome", "it"),
+                math_text(" = "),
+                math_sub("ρ", "0"),
+                math_text(" + "),
+                math_sub("ρ", "1"),
+                math_text(" "),
+                math_sub("AIW", "it"),
+                math_text(" + "),
+                math_sub("ρ", "2"),
+                math_text(" "),
+                math_subsup("AIW", "it", "2"),
+                math_text(" + "),
+                math_sub("ρ", "3"),
+                math_text(" "),
+                math_sub("AnalystAttention", "it"),
+                math_text(" + "),
+                math_sub("ρ", "4"),
+                math_text(" "),
+                math_group([math_sub("AIW", "it"), math_text(" × "), math_sub("AnalystAttention", "it")]),
+                math_text(" + "),
+                math_sub("ρ", "5"),
+                math_text(" "),
+                math_group([math_subsup("AIW", "it", "2"), math_text(" × "), math_sub("AnalystAttention", "it")]),
+                math_text(" + Σ "),
+                math_sub("κ", "k"),
+                math_text(" "),
+                math_sub("Controls", "it"),
+                math_text(" + "),
+                math_sub("μ", "i"),
+                math_text(" + "),
+                math_sub("λ", "t"),
+                math_text(" + "),
+                math_sub("ω", "it"),
+            ]],
             eq_no=8,
             lang=lang,
         )
@@ -1200,13 +1493,18 @@ def rebuild_explanation_paragraph(paragraph, lang: str):
             append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
             append_run(paragraph, " 为技术节点 k 在年份 t 的网络权重。该指标的含义是：企业并非因为拥有更多 AI 专利就自动获得更高技术行动得分，而是当其 AI 专利集中在全球 AI 知识网络中更核心、更具结构影响力的技术节点时，才获得更高的质量调整后 AI 技术积累得分。因此，AI Patent 衡量的是企业可验证 AI 技术资产的网络加权存量，而不是未经区分的专利件数。", east_asia, latin, size_pt)
             return True
-        if text.startswith("其中，`Return_{im}` 表示企业"):
+        if text.startswith("其中，`Return_{im}` 表示企业") or text.startswith("其中，Return_{im} 表示企业"):
             clear_paragraph(paragraph)
             append_run(paragraph, "其中，", east_asia, latin, size_pt)
             append_symbol(paragraph, "Return", "im", east_asia, latin, size_pt, italic=False)
             append_run(paragraph, " 表示企业 i 在年份 t 内第 m 月的个股收益率。该指标越小，说明企业在不确定环境中的股价波动越低、风险暴露越平缓，其吸收冲击和维持稳定的能力越强。", east_asia, latin, size_pt)
             return True
-        if text.startswith("其中，`w_1` 和 `w_2` 为熵权法确定的权重"):
+        if (
+            text.startswith("其中，`w_1` 和 `w_2` 为熵权法确定的权重")
+            or text.startswith("其中，w1和 w2为熵权法确定的权重")
+            or text.startswith("其中，w1 和 w2 为熵权法确定的权重")
+            or text.startswith("其中，w1和w2为熵权法确定的权重")
+        ):
             clear_paragraph(paragraph)
             append_run(paragraph, "其中，", east_asia, latin, size_pt)
             append_symbol(paragraph, "w", "1", east_asia, latin, size_pt, italic=False)
@@ -1226,6 +1524,16 @@ def rebuild_explanation_paragraph(paragraph, lang: str):
             append_run(paragraph, "。", east_asia, latin, size_pt)
             return True
         if text.startswith("其中，PR_{kt} 表示技术节点"):
+            clear_paragraph(paragraph)
+            append_run(paragraph, "其中，", east_asia, latin, size_pt)
+            append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 表示技术节点 k 在年份 t 的 PageRank 权重；M(k) 表示与节点 k 存在指向或连接关系的节点集合；", east_asia, latin, size_pt)
+            append_symbol(paragraph, "L", "jt", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 表示节点 j 在年份 t 的外向连接数量；d 为阻尼系数，通常设定为0.85。", east_asia, latin, size_pt)
+            append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " 越高，说明该技术节点在全球人工智能知识网络中越处于核心位置，其对应专利所代表的知识影响力和技术关联价值越高。为兼顾技术演进与样本覆盖，本文优先使用年度 PageRank 权重；若个别年份节点权重无法观测，则使用全样本期网络权重进行补充。", east_asia, latin, size_pt)
+            return True
+        if text.startswith("其中，PRkt 表示技术节点"):
             clear_paragraph(paragraph)
             append_run(paragraph, "其中，", east_asia, latin, size_pt)
             append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
@@ -1257,7 +1565,7 @@ def rebuild_explanation_paragraph(paragraph, lang: str):
             append_run(paragraph, "。", east_asia, latin, size_pt)
             return True
         if text.startswith("其中，Resilience_it 表示企业 i 在年份 t 的企业韧性"):
-            clear_paragraph(paragraph)
+            reset_paragraph_runs(paragraph)
             append_run(paragraph, "其中，", east_asia, latin, size_pt)
             append_symbol(paragraph, "Resilience", "it", east_asia, latin, size_pt, italic=False)
             append_run(paragraph, " 表示企业 i 在年份 t 的企业韧性；", east_asia, latin, size_pt)
@@ -1279,13 +1587,13 @@ def rebuild_explanation_paragraph(paragraph, lang: str):
             append_run(paragraph, " < 0，则表明人工智能洗白与企业韧性之间存在显著的倒 U 型关系。", east_asia, latin, size_pt)
             return True
         if text.startswith("其中，Channel_it 分别表示 Trade Credit 和 Agency Cost"):
-            clear_paragraph(paragraph)
+            reset_paragraph_runs(paragraph)
             append_run(paragraph, "其中，", east_asia, latin, size_pt)
             append_symbol(paragraph, "Channel", "it", east_asia, latin, size_pt, italic=False)
             append_run(paragraph, " 分别表示 Trade Credit 和 Agency Cost。在此基础上，再将中介变量纳入企业韧性回归：", east_asia, latin, size_pt)
             return True
         if text.startswith("其中，Outcome_it 分别表示 Resilience、Trade Credit 和 Agency Cost"):
-            clear_paragraph(paragraph)
+            reset_paragraph_runs(paragraph)
             append_run(paragraph, "其中，", east_asia, latin, size_pt)
             append_symbol(paragraph, "Outcome", "it", east_asia, latin, size_pt, italic=False)
             append_run(paragraph, " 分别表示 Resilience、Trade Credit 和 Agency Cost。为降低交互项带来的多重共线性问题，本文在构造交互项前对 AIW 与 Analyst Attention 进行中心化处理。该模型不仅能够检验分析师关注度是否改变人工智能洗白的边际影响方向与强度，也能够识别其是否改变倒 U 型关系的拐点位置。", east_asia, latin, size_pt)
@@ -1315,7 +1623,7 @@ def rebuild_explanation_paragraph(paragraph, lang: str):
             append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
             append_run(paragraph, " is the network weight of node k in year t. This score means that a firm does not receive a higher AI-action score simply because it files more AI patents. It receives a higher score when its AI patents are concentrated in more central and structurally influential positions within the global AI knowledge network. The resulting AI Patent variable therefore measures a firm's quality-adjusted stock of verifiable AI technological assets rather than an undifferentiated patent count.", east_asia, latin, size_pt)
             return True
-        if text.startswith("where `Return_{im}` denotes the stock return"):
+        if text.startswith("where `Return_{im}` denotes the stock return") or text.startswith("where Return_{im} denotes the stock return"):
             clear_paragraph(paragraph)
             append_run(paragraph, "where ", east_asia, latin, size_pt)
             append_symbol(paragraph, "Return", "im", east_asia, latin, size_pt, italic=False)
@@ -1345,6 +1653,16 @@ def rebuild_explanation_paragraph(paragraph, lang: str):
             append_run(paragraph, " to test the nonlinear relationship.", east_asia, latin, size_pt)
             return True
         if text.startswith("where PR_{kt} is the PageRank weight"):
+            clear_paragraph(paragraph)
+            append_run(paragraph, "where ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " is the PageRank weight of technology node k in year t, M(k) is the set of nodes linked to node k, ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "L", "jt", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " is the number of outgoing links of node j in year t, and d is the damping factor, conventionally set at 0.85. A higher ", east_asia, latin, size_pt)
+            append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
+            append_run(paragraph, " indicates that the node occupies a more central position in the global AI knowledge network.", east_asia, latin, size_pt)
+            return True
+        if text.startswith("where PRkt is the PageRank weight"):
             clear_paragraph(paragraph)
             append_run(paragraph, "where ", east_asia, latin, size_pt)
             append_symbol(paragraph, "PR", "kt", east_asia, latin, size_pt, italic=False)
@@ -1422,6 +1740,12 @@ def format_paragraphs(doc: Document, lang: str):
         if rebuild_explanation_paragraph(paragraph, lang):
             set_paragraph_format(paragraph, lang, in_table=False)
             continue
+        if rebuild_inline_symbol_paragraph(paragraph, lang):
+            set_paragraph_format(paragraph, lang, in_table=False)
+            continue
+        if rebuild_collapsed_symbol_paragraph(paragraph, lang):
+            set_paragraph_format(paragraph, lang, in_table=False)
+            continue
         set_paragraph_format(paragraph, lang, in_table=False)
         for run in paragraph.runs:
             if paragraph_has_drawing(paragraph):
@@ -1459,7 +1783,7 @@ def _parse_equation_number(text: str) -> int | None:
 
 
 def consolidate_existing_equation_numbers(doc: Document):
-    """Merge equation paragraphs plus standalone number paragraphs into one-row blocks."""
+    """Merge equation paragraphs plus standalone number paragraphs into native OMML rows."""
     body = doc._element.body
     children = list(body)
     idx = 0
@@ -1476,12 +1800,34 @@ def consolidate_existing_equation_numbers(doc: Document):
         if eq_no is None:
             idx += 1
             continue
-        table = build_equation_table(current, eq_no)
-        body.insert(body.index(current), table)
+        lines = _extract_math_lines_from_paragraph_xml(current)
+        if not lines:
+            idx += 1
+            continue
+        new_p = build_equation_numbered_paragraph(lines, eq_no, lang="cn")
+        body.insert(body.index(current), new_p)
         body.remove(current)
         body.remove(nxt)
         children = list(body)
         idx += 1
+
+
+def remove_orphan_equation_number_paragraphs(doc: Document):
+    body = doc._element.body
+    children = list(body)
+    for idx, node in enumerate(list(children)):
+        if node.tag != qn("w:p"):
+            continue
+        eq_no = _parse_equation_number(_paragraph_text_xml(node))
+        if eq_no is None:
+            continue
+        prev_node = children[idx - 1] if idx > 0 else None
+        if prev_node is None:
+            continue
+        if prev_node.tag == qn("w:p") and _is_equation_paragraph_xml(prev_node):
+            body.remove(node)
+        elif prev_node.tag == qn("w:tbl") and ("<m:oMath" in prev_node.xml or "<m:oMathPara" in prev_node.xml):
+            body.remove(node)
 
 
 def renumber_equation_tables(doc: Document):
@@ -1541,6 +1887,7 @@ def normalize_plain_chinese_paragraphs(doc: Document):
             or p.findall(f".//{{{W_NS}}}drawing")
             or p.findall(f".//{{{M_NS}}}oMath")
             or p.findall(f".//{{{M_NS}}}oMathPara")
+            or p.findall(f".//{{{W_NS}}}vertAlign")
         ):
             continue
         text_nodes = p.findall(f".//{{{W_NS}}}t")
@@ -1553,6 +1900,40 @@ def normalize_plain_chinese_paragraphs(doc: Document):
         text_nodes[0].text = normalized
         for node in text_nodes[1:]:
             node.text = ""
+
+
+def audit_inline_symbol_delivery(doc: Document):
+    failures = []
+    for idx, paragraph in enumerate(doc.paragraphs):
+        if paragraph_has_fields(paragraph) or paragraph_has_drawing(paragraph):
+            continue
+        visible = "".join(run.text for run in paragraph.runs)
+        if not visible:
+            continue
+        subscript_runs = {run.text for run in paragraph.runs if run.font.subscript}
+        for token, expected_sub in INLINE_SUBSCRIPT_AUDIT_PATTERNS.items():
+            if token in visible and expected_sub not in subscript_runs:
+                failures.append((idx, token, visible[:160]))
+                break
+    if failures:
+        preview = "; ".join(f"p{idx}:{token}" for idx, token, _ in failures[:8])
+        raise RuntimeError(f"Inline symbol delivery audit failed: {preview}")
+
+
+def audit_equation_paragraph_delivery(doc: Document):
+    failures = []
+    for idx, paragraph in enumerate(doc.paragraphs):
+        visible = "".join(run.text for run in paragraph.runs).strip()
+        has_math = _is_equation_paragraph_xml(paragraph._element)
+        if _parse_equation_number(visible) is not None and not has_math:
+            failures.append((idx, visible))
+            continue
+        if has_math and EQUATION_NO_ONLY_RE.fullmatch(visible):
+            if "w:tab" not in paragraph._element.xml:
+                failures.append((idx, visible))
+    if failures:
+        preview = "; ".join(f"p{idx}:{text}" for idx, text in failures[:8])
+        raise RuntimeError(f"Equation numbering audit failed: {preview}")
 
 
 def apply_page_break_rules(doc: Document, lang: str):
@@ -1578,8 +1959,15 @@ def validate_docx(path: Path, citation_policy: str = "strict"):
             raise RuntimeError(f"{path} still contains deprecated variable token: {old_name}")
     for raw_formula in (
         "Stability_{it}",
+        "Return_{im}",
         "Growth_{it}",
+        "Revenue_{it}",
+        "Revenue_{i,t-3}",
         "CR_{it}",
+        "w_1",
+        "w_2",
+        "AIDisclosure_{it}",
+        "AIPatent_{it}",
         "\\overline{AIDisclosure}_{t}",
         "\\overline{AIPatent}_{t}",
         "\\sigma(AIDisclosure_{t})",
@@ -1611,13 +1999,17 @@ def main():
     doc = Document(args.input_docx)
     set_style_fonts(doc, args.lang)
     format_paragraphs(doc, args.lang)
+    normalize_existing_omml_numbered_paragraphs(doc, args.lang)
     consolidate_existing_equation_numbers(doc)
-    renumber_equation_tables(doc)
+    normalize_display_equation_paragraphs(doc, args.lang)
+    remove_orphan_equation_number_paragraphs(doc)
     if args.lang == "cn":
         normalize_plain_chinese_paragraphs(doc)
     force_caption_alignment(doc)
     apply_page_break_rules(doc, args.lang)
     format_tables(doc, args.lang)
+    audit_inline_symbol_delivery(doc)
+    audit_equation_paragraph_delivery(doc)
     out_path = Path(args.output_docx)
     doc.save(out_path)
     validate_docx(out_path, citation_policy=args.citation_policy)

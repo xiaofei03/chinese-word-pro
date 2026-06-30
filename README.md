@@ -147,6 +147,25 @@ This is important because formula failures are not limited to one place. They ca
 
 Without a dedicated pipeline, the workflow becomes reactive and project-specific. With the pipeline, formula handling becomes a reusable finalization discipline.
 
+The underlying lesson is general:
+
+- formula failures are rarely caused by one bad token alone
+- they usually come from a missing delivery chain that does not jointly handle display equations, explanatory prose, numbering layout, and final audit
+
+This skill therefore treats formula robustness as a workflow property, not as a one-off patch.
+
+### Default General Solution
+
+The default cross-project solution is now explicit:
+
+- native Word OMML equations for display formulas
+- right-aligned tab-stop numbering on the same numbered paragraph
+- automatic internal wrapping for overlong equations
+- Word-native subscript or superscript runs for explanation prose
+- fail-closed audit if orphan numbering, pseudo-formula residue, or collapsed subscripts survive
+
+This is meant to prevent repeated regressions when a new manuscript introduces different variables, longer regression models, or additional measurement formulas.
+
 ## Formula Inventory
 
 For formal delivery, the skill should treat formulas as an audited inventory rather than as accidental strings that happen to appear in the manuscript.
@@ -180,6 +199,17 @@ The inline symbol renderer is responsible for turning source-like notation into 
 
 Its job is to prevent formal delivery from exposing raw `_`, `{}`, `\\sigma`, `\\overline`, or similar markup-like residue in ordinary explanatory paragraphs.
 
+It also must catch collapsed residues that often survive ordinary find-and-replace logic, for example:
+
+- `Resilienceit`
+- `AIWit`
+- `Outcomeit`
+- `Controlsit`
+- `w1`, `w2`
+- `μi`, `λt`, `εit`
+
+If these appear in explanation prose without true subscript runs, delivery should fail rather than silently passing.
+
 ## OMML Equation Compiler
 
 The OMML equation compiler is responsible for display equations.
@@ -194,7 +224,8 @@ Its goals are to:
 Default strategy:
 
 - short single-line equations should use native equation objects plus a right-aligned tab stop and same-line numbering by default
-- long or multiline equations may fall back to a borderless equation-layout container when the default tab-stop strategy is not stable enough
+- long or multiline equations should remain one numbered equation paragraph and wrap internally when possible, so the equation stays complete and the number remains aligned on the last visual line
+- if a previous DOCX contains an equation paragraph plus a separate orphan number paragraph, the compiler should rebuild them into one native numbered equation paragraph and delete the orphan
 
 The key point is that layout choice is an implementation strategy inside the compiler, not the governing policy itself.
 
@@ -206,9 +237,12 @@ The audit must confirm:
 
 - display equations that should be native math actually contain `m:oMath` or `m:eqArr`
 - equation numbers are present, ordered, and stay on the same row as the equation
+- orphan number-only paragraphs do not remain after finalization
+- long equations are not left as one page-overflowing unbroken row
 - multiline equations are not fragmented into unrelated pieces
 - explanatory prose does not expose raw source-like strings such as `Stability_{it}`, `CR_{it}`, `\\overline{...}`, or `\\sigma(...)`
 - inline variables use true subscript or superscript formatting where required
+- collapsed residues such as `Resilienceit`, `Outcomeit`, `w1`, `w2`, `μi`, and `λt` are not delivered as ordinary plain text
 - equation containers do not inherit ordinary table borders or clipping-prone line-height settings
 
 Fail-closed rule:
