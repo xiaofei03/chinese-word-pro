@@ -154,6 +154,31 @@ This skill is the Word finalization authority. It owns the final post-processing
 - XML-level garbling checks
 - citation-field preservation checks
 
+### Academic Word Finalization Triad
+
+Formal academic Word delivery must pass three independent hard gates. These gates are general and cross-project; they are not tied to any single manuscript, journal, variable system, or language pair.
+
+1. `Formula Gate`
+   - Display equations must use native Word math objects.
+   - The visible formula body must be centered.
+   - The equation number must stay on the same formula paragraph and be right-aligned.
+   - Inline symbolic explanations must use Word-native subscript/superscript runs rather than raw pseudo-LaTeX or collapsed text.
+
+2. `Figure Gate`
+   - Figures must be inline, not floating anchors.
+   - Figure aspect ratio must be preserved; do not stretch an image just to fill blank page space.
+   - Figure paragraphs must be centered with zero indentation and safe line spacing.
+   - Figure captions must be independent centered paragraphs with continuous numbering.
+
+3. `Paragraph and Table Geometry Gate`
+   - Ordinary body paragraphs are left-aligned by default.
+   - Figure captions and table captions are centered by default.
+   - Academic table-cell paragraphs are centered by default and must explicitly reset first-line, left, and right indentation to zero.
+   - Table cells must be vertically centered, avoid fixed row-height clipping, and fit the available page width unless a target-journal profile requires another layout.
+   - The finalizer must neutralize style-inherited Chinese first-line indentation at OOXML level, including `w:firstLineChars="0"`, not merely through visible style settings.
+
+If any gate fails, the DOCX is not formal-delivery-safe and must not overwrite the main manuscript file.
+
 ### Formula Finalization Pipeline
 
 For academic manuscripts, formula handling is a first-class delivery subsystem rather than an afterthought.
@@ -296,6 +321,7 @@ Non-citation-managed mode:
 - For citation-managed manuscripts, separate citation-field correctness from visual formatting correctness and validate both.
 - Do not assume the reference template will automatically fix three-line tables, figure sizing, inline symbols, or paragraph indentation.
 - Always inspect table paragraphs for `first_line_indent`, `left_indent`, and `right_indent`; academic tables should normally reset all of them to zero unless the user explicitly requests otherwise.
+- For academic table cells, do not rely on paragraph styles to cancel indentation. The finalizer must write explicit OOXML indentation attributes: `w:left="0"`, `w:right="0"`, `w:firstLine="0"`, and `w:firstLineChars="0"`, and remove hanging indentation attributes.
 - When inline formulas or symbol explanations are prone to corruption in Word, prefer native Word runs with explicit subscript formatting over trusting automatic math conversion.
 - If a symbol appears in both a display equation and its explanatory paragraph, the explanatory paragraph must be repaired too; fixing the display equation alone is insufficient.
 - Do not treat a successful formula conversion in XML as enough. The workflow must also guard against visual failures caused by orphan numbering paragraphs, collapsed symbols, and overlong one-line equations.
@@ -324,6 +350,7 @@ Before a final DOCX is allowed to overwrite the main deliverable, the post-proce
 - three-line tables remain structurally intact
 - body text, headings, and references are left-aligned unless explicitly overridden
 - academic table-cell paragraphs have zero first-line, left, and right indentation and are centered by default unless a target journal profile explicitly requires another alignment
+- academic table-cell paragraph XML explicitly contains zero indentation, including `firstLineChars=0`, so WPS/Word cannot reapply body-style first-line indentation
 - academic tables are centered and fit the available page width by default, while equation-layout tables remain borderless and are not forced into three-line-table styling
 - figure captions and table captions are independent centered paragraphs
 - visible Chinese body text has no unnecessary spaces between Chinese characters, between numbers and Chinese measurement words, or before Chinese punctuation, while Zotero field metadata is not edited directly
@@ -371,20 +398,20 @@ Audit rules:
 - XML audit must confirm narrative paragraphs beginning with `表 1 报告...` or similar are not accidentally centered.
 - Visible-text audit should check common Chinese spacing problems, but ignore Zotero field metadata where English abstracts may contain spaces before punctuation.
 
-### Default Three-Line Table Standards
+### Default Academic Table Standards
 
 - Default three-line table widths:
   - top rule: `1.5 pt`
   - header separator rule: `0.5 pt`
   - bottom rule: `1.5 pt`
 - By default, do not keep vertical borders and do not keep ordinary row gridlines unless the user explicitly requests auxiliary lines.
-- Table header cells should be left-aligned by default for submission finalization unless the target template explicitly requires centering.
-- Short body fields should usually be left-aligned when the user requests globally left-aligned paragraphs.
-- Long narrative or definition columns should usually be left-aligned.
+- Table header cells and table body cells should be centered by default for polished submission finalization unless the target template explicitly requires field-specific alignment.
+- If a table includes long narrative or definition columns, the journal profile may require those columns to be left-aligned, but this must be an explicit table-level decision rather than inherited body indentation.
 - Prefer compact academic geometry:
   - fixed column widths
   - small cell margins
   - zero paragraph indentation
+  - explicit OOXML zero indentation, including `firstLineChars=0`
   - explicit line spacing
   - no fixed row heights that can clip text
 
@@ -625,6 +652,9 @@ Script gate expectations for `finalize_submission_docx.py`:
 - it must run the OMML equation compiler for display equations before delivery
 - it must run the formula delivery audit and fail closed when raw formula residue remains
 - it must not describe a file as formally finalized if formula audit fails, even when the rest of the typography is acceptable
+- it must implement the Figure Gate by rejecting floating anchor images and normalizing figure/caption paragraphs
+- it must implement the Paragraph and Table Geometry Gate by forcing academic table-cell paragraphs to centered alignment and explicit zero indentation at both Word API and OOXML levels
+- it must fail closed when ordinary academic table cells still inherit body first-line indentation, including character-based Chinese indentation such as `firstLineChars`
 
 Recommended Zotero preflight interface:
 

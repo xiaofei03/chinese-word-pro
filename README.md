@@ -117,12 +117,53 @@ Typical finalization responsibilities:
 - repair inline pseudo-formulas such as `Y_it`, `CR_it`, or `z(...)`
 - keep numbered formulas on the same visual line as their equation numbers
 - force figures to remain inline rather than floating
+- preserve figure aspect ratios rather than stretching images to fill blank space
 - separate figure captions from interpretation paragraphs
 - preserve caption numbering
 - center figure captions and table captions as independent paragraphs
-- force body text, headings, captions, references, and table-cell text to left alignment unless explicitly overridden
+- force ordinary body text and references to left alignment unless explicitly overridden
+- force academic table-cell text to centered alignment with explicit zero indentation unless a target-journal profile requires field-specific alignment
 - enforce chapter-open page breaks
 - verify that citation fields survive post-processing
+
+## Academic Word Finalization Triad
+
+For submission-ready academic Word files, this skill treats formulas, figures, and paragraph/table geometry as three hard gates rather than cosmetic preferences.
+
+### Formula Gate
+
+The formula gate requires:
+
+- native Word OMML equations for display formulas
+- visibly centered equation bodies
+- right-aligned equation numbers on the same formula paragraph
+- no ordinary visible table fallback unless explicitly approved and logged
+- true Word subscript/superscript runs for explanatory symbols in prose
+- no raw pseudo-formula residue such as `Y_it`, `Return_{im}`, `K_{it}`, or collapsed forms such as `Resilienceit`
+
+### Figure Gate
+
+The figure gate requires:
+
+- inline figures, not floating anchors
+- preserved aspect ratios, with no horizontal or vertical stretching
+- centered figure paragraphs with zero indentation
+- independent centered captions immediately adjacent to figures
+- continuous caption numbering
+- render QA for pages where figures are large, dense, or near a page break
+
+### Paragraph and Table Geometry Gate
+
+The paragraph/table gate requires:
+
+- ordinary body paragraphs left-aligned by default
+- figure captions and table captions centered as independent paragraphs
+- academic table cells horizontally centered and vertically centered by default
+- table-cell paragraph first-line, left, and right indentation explicitly reset to zero
+- OOXML-level indentation safeguards, including `w:firstLineChars="0"`, so WPS/Word cannot reapply Chinese body first-line indentation inside tables
+- no fixed row-height or exact-line-height clipping inside ordinary academic tables
+
+If any of these gates fails, the output is a working draft at best and must not be described as formal submission-ready.
 
 ## Formula Finalization Pipeline
 
@@ -269,13 +310,15 @@ A final submission DOCX should not be considered passed unless all of the follow
 
 - live citation fields are still present
 - no garbling markers appear in OOXML
-- body text, headings, captions, references, and table-cell paragraphs are left-aligned unless the user explicitly requested otherwise
+- body text and references are left-aligned unless the user explicitly requested otherwise
 - figure paragraphs are inline and captions remain independent paragraphs
 - figure captions and table captions are centered independently from body text
 - core formulas remain native Word objects where required
 - equation numbers are right-aligned on the same row as their equations
 - equation layout tables are borderless and not treated as ordinary three-line tables
 - tables preserve academic three-line structure
+- academic table-cell paragraphs are centered and explicitly zero-indented at OOXML level, including `firstLineChars=0`
+- academic table cells are vertically centered and do not inherit body paragraph first-line indentation
 - abstract, major chapters, and references start on new pages where the workflow requires
 - temporary exports are cleaned up after delivery
 
@@ -413,7 +456,9 @@ Safety rule:
 - Chinese text damaged before DOCX generation
 - mixed Chinese and English fonts rendering inconsistently
 - tables with wrong indentation or broken three-line rules
+- table cells inheriting body first-line indentation even after visible styles appear correct
 - clipped figures or unsafe side-by-side layouts
+- figures stretched out of their original aspect ratio
 - centered captions drifting back to body alignment or body paragraphs being mistaken for captions
 - formula text that looks acceptable in Markdown but degrades in Word
 - formula numbers that drift into standalone paragraphs or formula tables that inherit three-line table borders

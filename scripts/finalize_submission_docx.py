@@ -785,6 +785,57 @@ def _set_paragraph_spacing_xml(p, *, before: int = 80, after: int = 80, align: s
         del spacing.attrib[qn("w:line")]
 
 
+def _force_table_cell_paragraph_xml(p, *, align: str = "center"):
+    """Make table-cell paragraph geometry explicit at OOXML level.
+
+    Word/WPS may inherit first-line character indentation from body styles even
+    when python-docx point indents are zero.  The char-based attributes are the
+    important guardrail for Chinese manuscripts.
+    """
+    p_pr = p.find(qn("w:pPr"))
+    if p_pr is None:
+        p_pr = _w_el("pPr")
+        p.insert(0, p_pr)
+
+    ind = p_pr.find(qn("w:ind"))
+    if ind is None:
+        ind = _w_el("ind")
+        p_pr.append(ind)
+    for attr in ("left", "right", "firstLine", "firstLineChars"):
+        ind.set(qn(f"w:{attr}"), "0")
+    for attr in ("hanging", "hangingChars"):
+        ind.attrib.pop(qn(f"w:{attr}"), None)
+
+    jc = p_pr.find(qn("w:jc"))
+    if jc is None:
+        jc = _w_el("jc")
+        p_pr.append(jc)
+    jc.set(qn("w:val"), align)
+
+
+def force_table_cell_paragraph_geometry(paragraph, *, lang: str, align: str = "center"):
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER if align == "center" else WD_ALIGN_PARAGRAPH.LEFT
+    pf = paragraph.paragraph_format
+    pf.left_indent = Pt(0)
+    pf.right_indent = Pt(0)
+    pf.first_line_indent = Pt(0)
+    pf.space_before = Pt(0)
+    pf.space_after = Pt(0)
+    pf.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+    pf.line_spacing = Pt(16 if lang == "cn" else 14)
+    _force_table_cell_paragraph_xml(paragraph._element, align=align)
+
+
+def force_cell_vertical_center(cell):
+    cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+    tc_pr = cell._tc.get_or_add_tcPr()
+    v_align = tc_pr.find(qn("w:vAlign"))
+    if v_align is None:
+        v_align = _w_el("vAlign")
+        tc_pr.append(v_align)
+    v_align.set(qn("w:val"), "center")
+
+
 def build_equation_table(equation_p, eq_no: int, *, lang: str = "cn"):
     """Build a borderless two-cell equation block with same-line numbering."""
     tbl = _w_el("tbl")
@@ -841,11 +892,7 @@ def set_paragraph_format(paragraph, lang: str, in_table: bool = False):
     pf.right_indent = Pt(0)
     paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
     if in_table:
-        pf.first_line_indent = Pt(0)
-        pf.space_before = Pt(0)
-        pf.space_after = Pt(0)
-        pf.line_spacing_rule = WD_LINE_SPACING.EXACTLY
-        pf.line_spacing = Pt(16 if lang == "cn" else 14)
+        force_table_cell_paragraph_geometry(paragraph, lang=lang, align="center")
         return
 
     text = paragraph.text.strip()
@@ -963,13 +1010,10 @@ def format_tables(doc: Document, lang: str):
         last_row = len(table.rows) - 1
         for r_idx, row in enumerate(table.rows):
             for cell in row.cells:
-                cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                force_cell_vertical_center(cell)
                 for p in cell.paragraphs:
                     set_paragraph_format(p, lang, in_table=True)
-                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    p.paragraph_format.first_line_indent = Pt(0)
-                    p.paragraph_format.left_indent = Pt(0)
-                    p.paragraph_format.right_indent = Pt(0)
+                    force_table_cell_paragraph_geometry(p, lang=lang, align="center")
                     for run in p.runs:
                         set_run_fonts(run, east_asia, latin, body_size, bold=(r_idx == 0))
                 set_table_borders(
@@ -1983,6 +2027,45 @@ def audit_equation_layout_tables(doc: Document, *, allow_fallback: bool = False)
         )
 
 
+def audit_table_cell_paragraph_geometry(doc: Document):
+    """Fail if ordinary academic tables still inherit body paragraph geometry."""
+    failures = []
+    for table_idx, table in enumerate(doc.tables):
+        if is_equation_table(table):
+            continue
+        for row_idx, row in enumerate(table.rows):
+            for cell_idx, cell in enumerate(row.cells):
+                tc_pr = cell._tc.tcPr
+                v_align = tc_pr.find(qn("w:vAlign")) if tc_pr is not None else None
+                if v_align is None or v_align.get(qn("w:val")) != "center":
+                    failures.append(f"table{table_idx} r{row_idx} c{cell_idx}:vAlign")
+                    continue
+                for p_idx, paragraph in enumerate(cell.paragraphs):
+                    p_pr = paragraph._element.find(qn("w:pPr"))
+                    ind = p_pr.find(qn("w:ind")) if p_pr is not None else None
+                    jc = p_pr.find(qn("w:jc")) if p_pr is not None else None
+                    if ind is None:
+                        failures.append(f"table{table_idx} r{row_idx} c{cell_idx} p{p_idx}:missing-ind")
+                        continue
+                    required_zero_attrs = ("left", "right", "firstLine", "firstLineChars")
+                    bad_attrs = [attr for attr in required_zero_attrs if ind.get(qn(f"w:{attr}")) != "0"]
+                    if bad_attrs:
+                        failures.append(f"table{table_idx} r{row_idx} c{cell_idx} p{p_idx}:bad-{','.join(bad_attrs)}")
+                        continue
+                    if any(ind.get(qn(f"w:{attr}")) is not None for attr in ("hanging", "hangingChars")):
+                        failures.append(f"table{table_idx} r{row_idx} c{cell_idx} p{p_idx}:hanging-indent")
+                        continue
+                    if jc is None or jc.get(qn("w:val")) != "center":
+                        failures.append(f"table{table_idx} r{row_idx} c{cell_idx} p{p_idx}:jc")
+                        continue
+    if failures:
+        preview = "; ".join(failures[:12])
+        raise RuntimeError(
+            "Table-cell paragraph geometry audit failed: ordinary academic table cells must "
+            f"have explicit zero indentation and centered alignment ({preview})."
+        )
+
+
 def apply_page_break_rules(doc: Document, lang: str):
     if lang == "cn":
         break_before_titles = {"摘要", "引言", "理论基础与研究假设", "研究设计", "实证结果分析", "进一步分析", "讨论", "结论", "参考文献"}
@@ -2067,6 +2150,7 @@ def main():
     audit_inline_symbol_delivery(doc)
     audit_equation_paragraph_delivery(doc)
     audit_equation_layout_tables(doc, allow_fallback=args.allow_equation_table_fallback)
+    audit_table_cell_paragraph_geometry(doc)
     out_path = Path(args.output_docx)
     doc.save(out_path)
     validate_docx(out_path, citation_policy=args.citation_policy)
