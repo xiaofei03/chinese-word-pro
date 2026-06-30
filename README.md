@@ -159,8 +159,8 @@ This skill therefore treats formula robustness as a workflow property, not as a 
 The default cross-project solution is now explicit:
 
 - native Word OMML equations for display formulas
-- right-aligned tab-stop numbering on the same numbered paragraph
-- automatic internal wrapping for overlong equations
+- centered native equation bodies with right-aligned tab-stop numbering on the same numbered paragraph
+- formula-specific fitting or controlled native wrapping for overlong equations
 - Word-native subscript or superscript runs for explanation prose
 - fail-closed audit if orphan numbering, pseudo-formula residue, or collapsed subscripts survive
 
@@ -223,8 +223,9 @@ Its goals are to:
 
 Default strategy:
 
-- short single-line equations should use native equation objects plus a right-aligned tab stop and same-line numbering by default
-- long or multiline equations should remain one numbered equation paragraph and wrap internally when possible, so the equation stays complete and the number remains aligned on the last visual line
+- short single-line equations should use native equation objects, a center tab stop for the formula body, and a right tab stop for same-line numbering by default
+- long or multiline equations should remain native Word math in one numbered equation paragraph whenever possible, so the equation stays complete and the number remains aligned on the final visual line
+- overlong formulas should first be handled through equation-only font-size reduction, safe tab-stop tuning, or controlled native wrapping rather than by converting the equation into a visible table
 - if a previous DOCX contains an equation paragraph plus a separate orphan number paragraph, the compiler should rebuild them into one native numbered equation paragraph and delete the orphan
 
 The key point is that layout choice is an implementation strategy inside the compiler, not the governing policy itself.
@@ -340,14 +341,15 @@ Numbered display equations require a stricter Word layout than ordinary paragrap
 
 Default layout:
 
-- Use a native Word equation object plus a right-aligned tab stop and same-line equation number as the primary strategy.
+- Use a native Word equation object plus center/right tab stops as the primary strategy: formula body centered, equation number right-aligned.
 - Keep multiline formulas as one native math block, not separate formula paragraphs.
 - Keep formula numbering on the same visual row as the equation block.
-- Use a borderless equation-layout fallback container only when the default tab-stop strategy is visually unstable for a long or multiline formula.
+- Do not use visible or ordinary Word tables as the default equation layout strategy.
+- Use a borderless equation-layout fallback container only after explicit user approval or documented template necessity.
 
 Required protection:
 
-- Do not let fallback equation containers receive ordinary three-line table borders.
+- Do not let approved fallback equation containers receive ordinary three-line table borders.
 - Remove all visible borders from fallback equation containers.
 - Remove fixed line spacing and fixed row heights inside fallback equation containers.
 - Add enough before/after spacing so multiline equations do not look cramped.
@@ -357,6 +359,8 @@ Failure examples:
 
 - equation number appears below the equation
 - equation number appears on the left or in an inconsistent position
+- equation number appears centered under the formula
+- formula body is visibly left-aligned when it should be centered
 - fallback-container rules cross through formulas
 - multiline formula is clipped because of fixed line height
 - formula is correct in XML but visually cramped or cut off in PDF/Word rendering

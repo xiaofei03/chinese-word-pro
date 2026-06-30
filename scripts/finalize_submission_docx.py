@@ -519,20 +519,44 @@ def build_equation_numbered_paragraph(lines, eq_no: int, *, lang: str):
     p_pr.append(tabs)
     para.append(p_pr)
 
-    for idx, line in enumerate(lines):
+    if len(lines) > 1:
         leading_tab_run = _w_el("r")
         leading_tab_run.append(_w_el("tab"))
         para.append(leading_tab_run)
 
-        o_math = _m_el("oMath")
-        for comp in line:
-            o_math.append(deepcopy(comp))
-        para.append(o_math)
+        o_math_para = _m_el("oMathPara")
+        o_math_para_pr = _m_el("oMathParaPr")
+        jc_math = _m_el("jc")
+        jc_math.set(qn("m:val"), "center")
+        o_math_para_pr.append(jc_math)
+        o_math_para.append(o_math_para_pr)
 
-        if idx < len(lines) - 1:
-            br_run = _w_el("r")
-            br_run.append(_w_el("br"))
-            para.append(br_run)
+        o_math = _m_el("oMath")
+        eq_arr = _m_el("eqArr")
+        eq_arr_pr = _m_el("eqArrPr")
+        for tag, value in (("maxDist", "1"), ("objDist", "0"), ("rSp", "1")):
+            node = _m_el(tag)
+            node.set(qn("m:val"), value)
+            eq_arr_pr.append(node)
+        eq_arr.append(eq_arr_pr)
+        for line in lines:
+            e = _m_el("e")
+            for comp in line:
+                e.append(deepcopy(comp))
+            eq_arr.append(e)
+        o_math.append(eq_arr)
+        o_math_para.append(o_math)
+        para.append(o_math_para)
+    else:
+        for line in lines:
+            leading_tab_run = _w_el("r")
+            leading_tab_run.append(_w_el("tab"))
+            para.append(leading_tab_run)
+
+            o_math = _m_el("oMath")
+            for comp in line:
+                o_math.append(deepcopy(comp))
+            para.append(o_math)
 
     tab_run = _w_el("r")
     tab_run.append(_w_el("tab"))
@@ -625,6 +649,10 @@ def _extract_equation_number_from_table_xml(tbl):
         if eq_no is not None:
             return eq_no
     return None
+
+
+def table_visible_text(table) -> str:
+    return "\n".join(cell.text for row in table.rows for cell in row.cells)
 
 
 def normalize_display_equation_paragraphs(doc: Document, lang: str):
@@ -1936,6 +1964,25 @@ def audit_equation_paragraph_delivery(doc: Document):
         raise RuntimeError(f"Equation numbering audit failed: {preview}")
 
 
+def audit_equation_layout_tables(doc: Document, *, allow_fallback: bool = False):
+    """Block table-based numbered equations unless an explicit fallback was requested."""
+    if allow_fallback:
+        return
+    failures = []
+    for idx, table in enumerate(doc.tables):
+        xml = table._element.xml
+        if ("<m:oMath" not in xml and "<m:oMathPara" not in xml) or _parse_equation_number(table_visible_text(table)) is None:
+            continue
+        failures.append(idx)
+    if failures:
+        preview = ", ".join(f"table{idx}" for idx in failures[:8])
+        raise RuntimeError(
+            "Equation layout audit failed: numbered equations must use native equation paragraphs "
+            f"with center/right tab stops, not table containers ({preview}). "
+            "Use --allow-equation-table-fallback only for a documented recovery exception."
+        )
+
+
 def apply_page_break_rules(doc: Document, lang: str):
     if lang == "cn":
         break_before_titles = {"摘要", "引言", "理论基础与研究假设", "研究设计", "实证结果分析", "进一步分析", "讨论", "结论", "参考文献"}
@@ -1993,6 +2040,15 @@ def main():
     )
     parser.add_argument("--reference-style", default=None)
     parser.add_argument("--template-profile", default=None)
+    parser.add_argument(
+        "--allow-equation-table-fallback",
+        action="store_true",
+        help=(
+            "Allow table-based numbered equation containers only for a documented recovery "
+            "exception. Default formal delivery requires native equation paragraphs with "
+            "center/right tab-stop numbering."
+        ),
+    )
     args = parser.parse_args()
     if args.mode != "journal_submission":
         raise ValueError("Only --mode journal_submission is currently supported")
@@ -2010,6 +2066,7 @@ def main():
     format_tables(doc, args.lang)
     audit_inline_symbol_delivery(doc)
     audit_equation_paragraph_delivery(doc)
+    audit_equation_layout_tables(doc, allow_fallback=args.allow_equation_table_fallback)
     out_path = Path(args.output_docx)
     doc.save(out_path)
     validate_docx(out_path, citation_policy=args.citation_policy)

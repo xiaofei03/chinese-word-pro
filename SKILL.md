@@ -201,6 +201,16 @@ Hard rule:
 
 The OMML equation compiler is responsible for numbered display equations.
 
+Highest-priority visual contract:
+
+- The final visible layout must match the stable Word-native pattern: a centered native equation block with its equation number on the same numbered paragraph, aligned at the right margin.
+- Treat the equation body as the "original formula block" rendered as native Word OMML, not as a picture, text box, or ordinary prose string.
+- Use a center tab stop for the equation body and a right tab stop for the number. The paragraph may be left-aligned internally to support tab stops, but the visible equation body must be centered and the visible number must be right-aligned.
+- For short and medium equations, keep one visual row.
+- For long equations, first try formula-specific fit controls such as modest math-run font reduction and tab-stop tuning. If wrapping is unavoidable, keep the formula as native math and keep the number on the final visual row at the right margin.
+- Do not use visible or ordinary Word tables as the default equation layout strategy. A table-like equation container is a last-resort recovery device only after explicit user approval or documented journal-template necessity.
+- If render QA shows the equation number below the formula, centered under the formula, left-aligned, or separated from the formula paragraph, the formula audit fails even if the XML contains `m:oMath`.
+
 Default policy:
 
 - convert display equations to native Word math objects
@@ -216,7 +226,7 @@ The default general-purpose strategy is therefore:
 - `native OMML equation`
 - `same numbered paragraph`
 - `right-aligned tab stop`
-- `automatic internal wrapping for overlong equations`
+- `formula-specific fitting or controlled native wrapping for overlong equations`
 
 Visible table fallbacks are not the preferred solution for formal delivery.
 
@@ -409,9 +419,12 @@ For journal-submission finalization:
 - numbered display equations should use native equation objects plus a right-aligned tab stop and same-line equation number as the primary layout strategy
 - multiline equations should remain one native Word math block rather than fragmented line-by-line text boxes
 - equation numbers must stay on the same visual row as the equation block; do not deliver equation numbers as standalone paragraphs below or above the formula
-- when the tab-stop strategy is visually unstable for a long or multiline formula, the finalizer may fall back to a borderless equation-layout container, but this is a controlled fallback rather than the default policy
-- any equation-layout fallback container must be excluded from ordinary three-line table formatting so table rules do not cross, compress, or visually cover formulas
-- any equation-layout fallback container must use zero indentation, no visible borders, vertically centered content, and enough before/after spacing to avoid cramped formulas
+- the visible target is: centered formula body, same-paragraph right-aligned equation number
+- do not downgrade formulas into visible tables, images, text boxes, or plain text to "fix" alignment
+- when the tab-stop strategy is visually unstable for a long formula, first use formula-specific fitting such as modest math-run font reduction, safe tab-stop adjustment, or controlled native wrapping
+- a borderless equation-layout container is no longer the general default; it is allowed only as a documented recovery fallback after explicit user approval or unavoidable journal-template constraints
+- any approved equation-layout fallback container must be excluded from ordinary three-line table formatting so table rules do not cross, compress, or visually cover formulas
+- any approved equation-layout fallback container must use zero indentation, no visible borders, vertically centered content, and enough before/after spacing to avoid cramped formulas
 - fixed line-height residues such as `w:lineRule="exact"`, `w:line`, and fixed row-height settings must be removed from fallback equation containers because they can clip multiline formulas in Word, WPS, or LibreOffice rendering
 - inline pseudo-formulas in explanation text should be repaired to true subscript or superscript runs
 - Greek letters, subscripts, and squared terms must not be delivered as bare underscore strings
@@ -497,17 +510,18 @@ Primary responsibilities:
 
 Default layout strategy:
 
-- Short single-line equations may use a same-line equation-number layout without visible table borders when that rendering path is stable.
-- Long single-line equations and multiline equations should use a borderless equation-layout container when needed for stability.
-- Do not use floating text boxes or drawing objects for equation numbering.
-
-The current stable default for automated delivery remains a borderless two-cell equation layout for numbered equations, because it is more reliable across Word/WPS rendering than naïve paragraph-tab layouts. However, this should be treated as one implementation strategy inside the compiler, not as the formula policy itself.
+- Use native Word OMML plus center/right tab stops as the default for all numbered display equations.
+- The visible equation body should be centered; the visible number should be right-aligned on the same paragraph.
+- Short single-line equations should remain on one visual row.
+- Long single-line equations should first be fitted through equation-only font-size reduction, safe tab-stop tuning, or native wrapping while preserving the same numbered paragraph.
+- Do not use floating text boxes, drawings, images, or ordinary visible tables for equation numbering.
+- Do not use a borderless equation-layout table as the default automated solution; reserve it for explicit recovery fallback only.
 
 Compiler rule:
 
 - The manuscript controller should request formula-safe delivery.
-- The compiler decides whether the equation can be safely rendered as a single-line same-paragraph numbered formula or should fall back to the stable borderless layout container.
-- The fallback must be deterministic and auditable.
+- The compiler must preserve the centered-native-formula plus right-number visual contract unless the user explicitly approves a documented fallback.
+- Any fallback must be deterministic, auditable, and clearly reported as a deviation from the default formula contract.
 
 ## Formula Delivery Audit
 
@@ -536,7 +550,8 @@ Required structure:
 - Use a native Word equation object plus a right-aligned tab stop and same-line equation number by default.
 - Preserve one native Word math block for multiline equations.
 - Keep formula numbers formatted as `（1）` for Chinese drafts and `(1)` or journal-required style for English drafts when the user requests English punctuation.
-- If the default tab-stop layout becomes visually unstable for a long or multiline equation, use a borderless fallback equation container and keep the number on the same visual row.
+- The visible formula body must be centered and the visible equation number must be right-aligned on the same formula paragraph.
+- If the default tab-stop layout becomes visually unstable for a long or multiline equation, first use equation-only fitting or controlled native wrapping; use a borderless fallback equation container only with explicit user approval or documented template necessity.
 
 Required cleanup:
 
@@ -550,9 +565,10 @@ Required audit:
 
 - XML audit must confirm equation blocks contain `m:oMath` or `m:eqArr`.
 - XML audit must confirm no standalone equation-number paragraph remains.
+- XML audit must confirm numbered equations are not delivered as ordinary visible tables unless a documented fallback exception exists.
 - XML audit must confirm fallback equation containers have no visible `w:tblBorders` or `w:tcBorders`.
 - XML audit must confirm fallback equation containers have no fixed `w:lineRule="exact"` or `w:line` residue.
-- Render QA must inspect at least the pages containing the longest formulas; XML checks alone are not sufficient because clipping is visual.
+- Render QA must inspect at least the pages containing the longest formulas; XML checks alone are not sufficient because clipping, centered-body alignment, and same-row numbering are visual.
 
 ### Recommended Companion Scripts
 
