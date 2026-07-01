@@ -38,7 +38,10 @@ def math_text_of(el: etree._Element) -> str:
 
 
 def has_math(el: etree._Element) -> bool:
-    return bool(el.xpath(".//m:oMath|.//m:oMathPara", namespaces=NS))
+    return (
+        el.tag in {qn("m", "oMath"), qn("m", "oMathPara")}
+        or bool(el.xpath(".//m:oMath|.//m:oMathPara", namespaces=NS))
+    )
 
 
 def ensure_child(parent: etree._Element, name: str) -> etree._Element:
@@ -57,7 +60,7 @@ def ensure_ppr(p: etree._Element) -> etree._Element:
     return ppr
 
 
-def set_formula_tabs(p: etree._Element, *, center: int | None = 4260, right: int = 8520) -> None:
+def set_formula_tabs(p: etree._Element, *, center: int | None = 4500, right: int = 9000) -> None:
     ppr = ensure_ppr(p)
     jc = ensure_child(ppr, "jc")
     jc.set(qn("w", "val"), "left")
@@ -146,7 +149,7 @@ def set_math_size(el: etree._Element, half_points: int) -> None:
 
 
 def add_number_layout(p: etree._Element, number: str, *, short_tail_line: bool) -> None:
-    set_formula_tabs(p, center=None if short_tail_line else 4260)
+    set_formula_tabs(p, center=None if short_tail_line else 4500)
     if not short_tail_line:
         first_math = next((child for child in p if has_math(child)), None)
         if first_math is not None:

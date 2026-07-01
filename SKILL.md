@@ -264,6 +264,7 @@ The formula audit must verify all of the following:
 - display equations that should be native math contain `m:oMath` or `m:eqArr`
 - no orphan equation-number-only paragraphs remain after finalization
 - equation numbers stay on the same numbered equation paragraph and are right-aligned through tab-stop layout
+- tab-stop layout must be audited structurally: each normal numbered equation paragraph should contain a leading tab before the native OMML equation object and a second tab before the equation number; the audit must treat an `m:oMath` or `m:oMathPara` element itself as a math object, not only math descendants
 - long equations with continuation lines use row-appropriate tab-stop logic: normal formula rows may use center + right tab stops, but short continuation-tail rows with the equation number should use a right tab stop only so the number does not stop at the center tab
 - long equations are wrapped inside the equation paragraph rather than overflowing the page as one unbroken line
 - explanation paragraphs do not expose raw source-like strings such as `Y_it`, `CR_it`, `Return_{im}`, `K_{it}`, `PR_{kt}`, `N_{ikt}`, `L_{jt}`, or collapsed residue such as `Resilienceit`, `Outcomeit`, `w1`, `w2`
