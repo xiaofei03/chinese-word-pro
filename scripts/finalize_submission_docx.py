@@ -13,6 +13,8 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt
 
+from fix_equation_number_tabs import patch_docx as repair_equation_number_tabs
+
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 
@@ -2153,6 +2155,7 @@ def main():
     audit_table_cell_paragraph_geometry(doc)
     out_path = Path(args.output_docx)
     doc.save(out_path)
+    repair_equation_number_tabs(out_path, out_path)
     validate_docx(out_path, citation_policy=args.citation_policy)
 
 

@@ -195,6 +195,19 @@ The underlying lesson is general:
 
 This skill therefore treats formula robustness as a workflow property, not as a one-off patch.
 
+## Renderer Artifact Triage
+
+Not every suspicious formula mark in a rendered PNG/PDF is a real Word defect. Headless renderers may show an isolated stray symbol before a native formula while WPS or Microsoft Word displays the formula correctly.
+
+Default rule:
+
+- Do not rewrite or simplify a formula solely because one renderer shows an isolated special symbol.
+- First inspect the DOCX XML for native `m:oMath` or `m:eqArr`.
+- Ask the user to confirm the formula in WPS/Microsoft Word when the issue looks like a renderer-only artifact.
+- Record the issue in QA notes and decide in the next round whether it needs content repair.
+
+This prevents overcorrecting a healthy native equation and creating new layout regressions.
+
 ### Default General Solution
 
 The default cross-project solution is now explicit:
@@ -268,6 +281,7 @@ Default strategy:
 - long or multiline equations should remain native Word math in one numbered equation paragraph whenever possible, so the equation stays complete and the number remains aligned on the final visual line
 - overlong formulas should first be handled through equation-only font-size reduction, safe tab-stop tuning, or controlled native wrapping rather than by converting the equation into a visible table
 - if a previous DOCX contains an equation paragraph plus a separate orphan number paragraph, the compiler should rebuild them into one native numbered equation paragraph and delete the orphan
+- if a long equation is displayed across several native formula rows, place the number on the final continuation row; if that final row is short and begins with tail terms such as `+ μ_i + λ_t + ε_it`, use a right tab stop only on that numbered row so the number cannot stop at the center tab
 
 The key point is that layout choice is an implementation strategy inside the compiler, not the governing policy itself.
 
@@ -428,6 +442,16 @@ python3 "$HOME/.codex/skills/chinese-word-pro/scripts/finalize_submission_docx.p
   --citation-policy warn
 ```
 
+Targeted equation-number repair:
+
+```bash
+python3 "$HOME/.codex/skills/chinese-word-pro/scripts/fix_equation_number_tabs.py" \
+  --input-docx "<input.docx>" \
+  --output-docx "<output.docx>"
+```
+
+Use this when native equations already exist but equation numbers are not consistently right-aligned. After running it, render the pages containing the longest formulas and inspect them visually.
+
 ## Caption And Chinese Text Cleanup
 
 Formal Chinese or bilingual Word delivery should also clean small typographic issues that are easy to miss.
@@ -485,4 +509,5 @@ That final decision belongs to the manuscript workflow controller. In the recomm
 - `scripts/build_chinese_word.py`: UTF-8 source to initial Chinese Word generation
 - `scripts/postprocess_thesis_docx.py`: legacy thesis-oriented DOCX cleanup
 - `scripts/finalize_submission_docx.py`: bilingual journal-submission finalization for formulas, figures, tables, pagination, and citation-safe DOCX delivery
+- `scripts/fix_equation_number_tabs.py`: targeted native-equation numbering repair for center/right tab-stop drift, including short continuation-tail rows
 - `scripts/zotero_preflight_recover.py`: Zotero launch, collection selection, connector preflight, and optional live-citation smoke DOCX audit

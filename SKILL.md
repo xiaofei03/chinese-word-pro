@@ -264,11 +264,28 @@ The formula audit must verify all of the following:
 - display equations that should be native math contain `m:oMath` or `m:eqArr`
 - no orphan equation-number-only paragraphs remain after finalization
 - equation numbers stay on the same numbered equation paragraph and are right-aligned through tab-stop layout
+- long equations with continuation lines use row-appropriate tab-stop logic: normal formula rows may use center + right tab stops, but short continuation-tail rows with the equation number should use a right tab stop only so the number does not stop at the center tab
 - long equations are wrapped inside the equation paragraph rather than overflowing the page as one unbroken line
 - explanation paragraphs do not expose raw source-like strings such as `Y_it`, `CR_it`, `Return_{im}`, `K_{it}`, `PR_{kt}`, `N_{ikt}`, `L_{jt}`, or collapsed residue such as `Resilienceit`, `Outcomeit`, `w1`, `w2`
 - Greek letters, indexed coefficients, and disturbance terms used in prose are delivered with true subscript formatting
 
 If any of these checks fail, the DOCX is not formal-delivery-safe and must not overwrite the main manuscript file.
+
+### Renderer Artifact Triage
+
+Some apparent formula defects are renderer-specific rather than true Word-content defects. For example, a headless LibreOffice render may show a stray leading symbol before a native equation even when WPS or Microsoft Word displays the formula correctly.
+
+Do not automatically rewrite or simplify a formula solely because one renderer shows an isolated special symbol before a formula.
+
+Triage rule:
+
+- first check the DOCX structure for native `m:oMath` or `m:eqArr`
+- render with the available automated renderer
+- if the issue is an isolated leading or decorative artifact and the formula XML is otherwise structurally sound, ask the user to confirm in WPS/Microsoft Word before changing formula content
+- record the artifact in the delivery log or QA notes
+- only modify the formula in the next round if the user confirms that the artifact appears in the target editor or final submission renderer
+
+This rule prevents unnecessary formula rewrites that may damage an otherwise correct native Word equation.
 
 When Zotero live citation fields are required, this skill also provides the downstream recovery helper for citation-manager readiness before Word export:
 
@@ -543,6 +560,7 @@ Default layout strategy:
 - Long single-line equations should first be fitted through equation-only font-size reduction, safe tab-stop tuning, or native wrapping while preserving the same numbered paragraph.
 - Do not use floating text boxes, drawings, images, or ordinary visible tables for equation numbering.
 - Do not use a borderless equation-layout table as the default automated solution; reserve it for explicit recovery fallback only.
+- For long models that are displayed across multiple native formula rows, keep the formula visually coherent and place the number on the final continuation row. If the final continuation row is short and begins with additive tail terms such as `+ μ_i + λ_t + ε_it`, remove the center tab stop from that numbered continuation row and keep only the right tab stop for the number.
 
 Compiler rule:
 
@@ -592,6 +610,7 @@ Required audit:
 
 - XML audit must confirm equation blocks contain `m:oMath` or `m:eqArr`.
 - XML audit must confirm no standalone equation-number paragraph remains.
+- XML audit must identify numbered short continuation rows and confirm they do not retain a center tab stop that can trap the equation number away from the right margin.
 - XML audit must confirm numbered equations are not delivered as ordinary visible tables unless a documented fallback exception exists.
 - XML audit must confirm fallback equation containers have no visible `w:tblBorders` or `w:tcBorders`.
 - XML audit must confirm fallback equation containers have no fixed `w:lineRule="exact"` or `w:line` residue.
@@ -619,6 +638,16 @@ python3 finalize_submission_docx.py \
   --mode journal_submission \
   --citation-policy strict
 ```
+
+For targeted repair of already-native numbered equations whose numbers drift away from the right margin, use:
+
+```bash
+python3 "$HOME/.codex/skills/chinese-word-pro/scripts/fix_equation_number_tabs.py" \
+  --input-docx "<input.docx>" \
+  --output-docx "<output.docx>"
+```
+
+This helper preserves native OMML equations and rewrites equation-number tab stops. It is especially useful for long empirical models where the final continuation line is short and the equation number otherwise stops at a center tab.
 
 Recovery-draft interface when citation-aware export is temporarily broken:
 
