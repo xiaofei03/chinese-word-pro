@@ -18,6 +18,7 @@ It helps the user:
 - inspect XML for garbling
 - protect citation fields during DOCX post-processing
 - finalize paired Chinese and English submission-ready Word files with the same structural rules
+- safely refine mature Chinese and English Word manuscripts without forcing a Markdown rebuild
 
 ## Best Use Cases
 
@@ -29,6 +30,7 @@ Use this skill when the task involves:
 - mixed Chinese and English body text
 - formula, Greek-letter, or subscript corruption in Word
 - final manuscript delivery that must preserve citation fields
+- Word-only final polish after the manuscript structure, formulas, tables, figures, and citations are already stable
 
 ## Design Position
 
@@ -40,6 +42,8 @@ In a paper workflow:
 
 - `management-empirical-writer` controls manuscript logic and delivery gates
 - `chinese-word-pro` controls Word finalization, typography, and damage prevention
+
+In early drafting, Word is usually generated from a UTF-8 or Markdown source. In late-stage Word-only refinement, the active Chinese and English `.docx` files become the working manuscripts and Markdown is treated as archival unless the user explicitly requests a full rebuild.
 
 ## Core Non-negotiables
 
@@ -65,6 +69,8 @@ It is especially suited to Chinese academic writing where Word output must look 
 
 ## Recommended Workflow
 
+For Markdown-first drafting:
+
 1. Edit the UTF-8 content source first.
 2. Generate a temporary DOCX with the project-approved export chain.
 3. If the document uses citation fields, verify they are present before post-processing.
@@ -73,6 +79,17 @@ It is especially suited to Chinese academic writing where Word output must look 
 6. Check `word/document.xml` for garbling markers.
 7. Render to images when rendering is available.
 8. Only then replace the final user-facing `.docx`.
+
+For Word-only refinement:
+
+1. Confirm the active Chinese and English Word files.
+2. Create temporary DOCX working copies from the active Word files.
+3. Apply only targeted citation-field-safe edits.
+4. Audit the touched structures: formulas, figures, captions, tables, paragraphs, pagination, and citation fields.
+5. Visually inspect or render the touched pages when available.
+6. Mirror the Chinese/English Word pair so the two files remain translation-equivalent.
+7. Replace the active Word files only after both language versions pass.
+8. Do not regenerate from Markdown for localized polish unless the user explicitly requests a full rebuild.
 
 ## Formal Delivery vs Recovery Drafts
 
@@ -97,6 +114,30 @@ Non-citation-managed output:
 
 - may use `--citation-policy off`
 - should not be used for empirical manuscripts with citekeys unless the user explicitly abandons live-citation delivery
+
+## Word-only Academic Refinement
+
+Use Word-only refinement when the manuscript is mature and the remaining work is final polish rather than structural drafting.
+
+This mode is designed to prevent a common late-stage failure: a full Markdown-to-Word rebuild fixes one citation or sentence but re-breaks formulas, figure sizing, table indentation, captions, or pagination that had already been manually stabilized.
+
+Allowed in this mode:
+
+- targeted formula and equation-number repair
+- table indentation removal, centering, three-line table repair, and width fitting
+- figure replacement, aspect-ratio-preserving resizing, and caption normalization
+- cover page, abstract, keyword, pagination, and paragraph-format polishing
+- citation-field-safe wording edits
+- bilingual Word-pair synchronization
+
+Not allowed by default:
+
+- full Markdown-to-Word rebuild for a small local edit
+- flattening Zotero or CSL citation fields
+- broad whole-document style resets that may damage verified formulas, tables, or figures
+- overwriting the active Word file before a temporary output and audit pass
+
+If the task becomes a major structural rewrite or requires rebuilding the citation architecture, return to the manuscript controller and ask whether to temporarily switch back to Markdown-first drafting.
 
 ## Academic Submission Finalization
 

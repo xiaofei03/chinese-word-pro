@@ -7,6 +7,8 @@ description: Use when creating, editing, formatting, or verifying Chinese Word `
 
 Use this skill for Chinese `.docx` work and bilingual academic submission finalization. It complements the built-in `documents` skill: use this skill for encoding, typography, Word-structure repair, and delivery-safe post-processing, then use `documents` for DOCX rendering and visual QA.
 
+It also owns Word-only academic refinement after a manuscript has matured beyond Markdown-first rebuilding. In that stage, Chinese and English Word files are the active manuscripts; Markdown is archival unless the user explicitly returns to a full rebuild.
+
 ## General Chinese Report Standard
 
 When the user asks for a Chinese report, stock analysis report, course report, case analysis, management report, or any non-thesis Chinese Word/PDF deliverable with charts or tables, read `references/general_report_delivery.md` before creating or formatting the document.
@@ -179,6 +181,56 @@ Formal academic Word delivery must pass three independent hard gates. These gate
 
 If any gate fails, the DOCX is not formal-delivery-safe and must not overwrite the main manuscript file.
 
+### Word-only Academic Refinement Mode
+
+Use this mode when the user confirms the manuscript has entered Word refinement, Word final polish, submission polish, or when the manuscript is structurally stable and repeated Markdown-to-Word rebuilds would risk damaging already repaired formulas, figures, tables, citation fields, or pagination.
+
+Purpose:
+
+- preserve a mature Word manuscript while making targeted, auditable improvements
+- avoid unnecessary full Markdown-to-Word re-export after layout has stabilized
+- keep Chinese and English Word deliverables synchronized without treating Markdown as the live source
+
+Allowed operations:
+
+- targeted formula repair and equation-number alignment
+- table-cell indentation removal, centering, width fitting, and three-line-table repair
+- figure replacement, sizing, aspect-ratio preservation, and caption normalization
+- paragraph alignment, cover-page, abstract, keyword, chapter-pagination, and reference-page polishing
+- citation-field-safe local wording edits
+- bilingual Word synchronization, where the English Word is a faithful translation-equivalent counterpart of the Chinese Word
+
+Prohibited operations unless the user explicitly requests a full rebuild:
+
+- regenerating the active final Word files from Markdown for a small local edit
+- flattening or replacing live citation fields with plain text
+- broad style resets that overwrite previously verified equation, table, or figure geometry
+- using ordinary visible tables as the default equation-numbering solution
+- directly overwriting the active Word file before a temporary output and audit pass exist
+
+Required workflow:
+
+1. Identify the active Chinese and English Word files and confirm the task is localized or final-polish oriented.
+2. Write changes to temporary DOCX files first; never modify the active deliverables in place as the first write.
+3. Preserve `ADDIN ZOTERO`, `CSL_CITATION`, or other live citation markers when present.
+4. Apply the smallest necessary OOXML or `python-docx` changes rather than a whole-document style reset.
+5. Run structural audits for the touched feature: citation fields, equations, captions, inline figures, table indentation, or paragraph geometry.
+6. Render or visually inspect the touched pages when available; XML success alone is not enough for formulas and figures.
+7. Replace the active Word deliverables only after the temporary files pass.
+8. If the project is bilingual, mirror the same substantive change into the other language's Word file and audit both.
+9. Commit and push when the project rules require versioned delivery.
+
+Mode boundary:
+
+- If the requested change adds a new section, restructures the argument, changes tables or empirical results wholesale, or requires rebuilding the citation architecture, ask whether to return temporarily to Markdown-first drafting.
+- If the requested change is citation enrichment, small wording revision, equation repair, figure/table formatting, or final layout polish, stay in Word-only refinement by default.
+
+Markdown handling:
+
+- Markdown files are archival snapshots in this mode.
+- Do not block a Word-only refinement delivery merely because Markdown was not updated.
+- If the user asks for archival synchronization after the Word polish, update Markdown separately from the stable Word file and clearly label it as archival, not as the layout source.
+
 ### Formula Finalization Pipeline
 
 For academic manuscripts, formula handling is a first-class delivery subsystem rather than an afterthought.
@@ -299,8 +351,8 @@ If the helper cannot recover Zotero, use Computer Use for one GUI attempt to sel
 
 ### Required Workflow
 
-1. Edit the UTF-8 source first. Do not treat the generated `.docx` as the only source of truth.
-2. Generate a temporary DOCX with the project-approved export chain.
+1. In Markdown-first mode, edit the UTF-8 source first. In Word-only refinement mode, treat the active DOCX pair as the working manuscripts and do not force a Markdown rebuild for localized polish.
+2. Generate a temporary DOCX with the project-approved export chain in Markdown-first mode, or create temporary DOCX working copies from the active Word files in Word-only refinement mode.
 3. If the project uses citation fields, verify that the temporary DOCX still contains them before post-processing.
 4. Run DOCX post-processing to repair Word-structure issues such as figure sizing, table borders, paragraph indentation, and inline symbol rendering.
 4a. For ordinary Chinese reports, run `scripts/clean_report_theme.py` before render QA so `Title`/`Heading` theme residue does not survive into another machine's Word/WPS rendering.
@@ -335,6 +387,7 @@ Non-citation-managed mode:
 ### Hard Rules
 
 - `Markdown -> pandoc -> docx` is a draft-generation path, not a complete final-delivery path.
+- After a manuscript enters Word-only refinement mode, do not trigger `Markdown -> pandoc -> docx` for localized polish unless the user explicitly asks for a full rebuild.
 - For Chinese academic DOCX, separate content correctness from Word-structure correctness.
 - For citation-managed manuscripts, separate citation-field correctness from visual formatting correctness and validate both.
 - Do not assume the reference template will automatically fix three-line tables, figure sizing, inline symbols, or paragraph indentation.
@@ -346,7 +399,8 @@ Non-citation-managed mode:
 - Before overwriting a user-facing DOCX, write a temporary output first so an open file or a failed pass does not destroy the working draft.
 - When the source path uses Word's built-in styles or a generic `python-docx Document()` base template, assume hidden blue theme residue exists until `document.xml`, `styles.xml`, and `theme1.xml` have passed audit.
 - If post-processing removes or flattens citation fields, treat that as a delivery failure, not a minor defect.
-- Do not directly hand-edit the previous "healthy" final DOCX and treat that as the new delivery baseline; always re-export from Markdown, then re-run finalization.
+- In Markdown-first mode, do not directly hand-edit the previous "healthy" final DOCX and treat that as the new delivery baseline; re-export from Markdown, then re-run finalization.
+- In Word-only refinement mode, targeted direct DOCX edits are allowed only through temporary working copies, citation-field-safe post-processing, and audits. This is the preferred path for late-stage formula, table, figure, citation, paragraph, cover-page, abstract, and small wording repairs.
 - Chinese and English final DOCX outputs must be finalized with the same structural rule set unless the user explicitly requests divergence.
 - Academic submission paragraphs must be left-aligned by default. Do not deliver body text, headings, or references as centered or justified unless the user explicitly requests that style. The default exceptions are pure figure/image paragraphs, figure captions, table captions, native equation blocks, equation-number paragraphs, and academic table-cell paragraphs.
 
